@@ -41,6 +41,9 @@ class GlassTextView @JvmOverloads constructor(
     private val shadow = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG)
     private val edge = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG)
 
+    /** true cuando el cielo detrás del reloj es claro: entonces el cristal se oscurece para que se lea. */
+    private var onBright = false
+
     private var glassBitmap: Bitmap? = null
     private var glassShader: BitmapShader? = null
     private val shaderMatrix = Matrix()
@@ -54,7 +57,7 @@ class GlassTextView @JvmOverloads constructor(
         shadow.textAlign = Paint.Align.CENTER
         edge.textAlign = Paint.Align.CENTER
         shadow.color = Color.TRANSPARENT
-        shadow.setShadowLayer(34f, 0f, 10f, 0x73000000)
+        shadow.setShadowLayer(40f, 0f, 12f, 0x8C000000.toInt())
         edge.style = Paint.Style.STROKE
         edge.strokeWidth = 1.2f
         edge.color = 0x66FFFFFF
@@ -70,6 +73,13 @@ class GlassTextView @JvmOverloads constructor(
         if (photo != null && screenW > 0 && screenH > 0) {
             // Versión pequeña (difuminado barato) y aclarada de la foto, estirada a la pantalla.
             val small = Bitmap.createScaledBitmap(photo, 48, 27, true)
+            // Luminosidad media de la franja donde suele ir el reloj (centro, parte alta).
+            var lum = 0L; var n = 0
+            for (y in 2 until 14) for (x in 12 until 36) {
+                val c = small.getPixel(x, y)
+                lum += (Color.red(c) * 299 + Color.green(c) * 587 + Color.blue(c) * 114) / 1000; n++
+            }
+            onBright = n > 0 && lum / n > 150
             val blurred = Bitmap.createScaledBitmap(small, screenW, screenH, true)
             small.recycle()
             glassBitmap = blurred
@@ -102,13 +112,13 @@ class GlassTextView @JvmOverloads constructor(
             shaderMatrix.postTranslate(-screenPos[0].toFloat(), -screenPos[1].toFloat())
             shader.setLocalMatrix(shaderMatrix)
             fill.shader = shader
-            fill.colorFilter = LIGHTEN
+            fill.colorFilter = if (onBright) DARKEN else LIGHTEN
             fill.alpha = 255
             canvas.drawText(text, x, y, fill)
-            // Velo blanco para que siempre se lea.
+            // Velo para que siempre se lea: blanco sobre fondos oscuros, oscuro sobre cielos claros.
             fill.shader = null
             fill.colorFilter = null
-            fill.color = Color.WHITE
+            fill.color = if (onBright) 0xFF1A2430.toInt() else Color.WHITE
             fill.alpha = (255 * (1f - glassAmount)).toInt()
             canvas.drawText(text, x, y, fill)
         } else {
@@ -126,11 +136,23 @@ class GlassTextView @JvmOverloads constructor(
             floatArrayOf(0f, 0.42f, 0.5f, 1f), Shader.TileMode.CLAMP)
         canvas.drawText(text, x, y, gloss)
 
-        // 4) Borde fino para que los trazos queden nítidos sobre fotos claras.
+        // 4) Borde fino para que los trazos queden nítidos.
+        edge.color = if (onBright) 0x66FFFFFF else 0x66FFFFFF
         canvas.drawText(text, x, y, edge)
     }
 
     companion object {
+        /** Oscurece el fondo (para cielos claros): cristal ahumado. */
+        private val DARKEN = ColorMatrixColorFilter(ColorMatrix().apply {
+            setSaturation(0.9f)
+            postConcat(ColorMatrix(floatArrayOf(
+                0.55f, 0f, 0f, 0f, -25f,
+                0f, 0.55f, 0f, 0f, -25f,
+                0f, 0f, 0.55f, 0f, -25f,
+                0f, 0f, 0f, 1f, 0f
+            )))
+        })
+
         /** Aclara y desatura un poco el fondo para que parezca cristal esmerilado. */
         private val LIGHTEN = ColorMatrixColorFilter(ColorMatrix().apply {
             setSaturation(0.8f)

@@ -122,7 +122,7 @@ class MainActivity : Activity() {
         // La primera fila queda abajo; las demás, fuera de pantalla hasta que bajes.
         rowsScroll.viewTreeObserver.addOnGlobalLayoutListener {
             val firstRow = rowsBox.getChildAt(1) ?: return@addOnGlobalLayoutListener
-            val wanted = rowsScroll.height - firstRow.height - (24 * dm.density).toInt()
+            val wanted = rowsScroll.height - firstRow.height - (16 * dm.density).toInt()
             if (wanted > 0 && topSpace.layoutParams.height != wanted) {
                 topSpace.layoutParams = topSpace.layoutParams.apply { height = wanted }
                 topSpace.requestLayout()
@@ -134,6 +134,8 @@ class MainActivity : Activity() {
             val p = (rowsScroll.scrollY / (260 * dm.density)).coerceIn(0f, 1f)
             dim.alpha = 0.65f * p
             clockBox.alpha = 1f - p
+            // Las filas de abajo no se ven hasta que bajas.
+            for (i in 2 until rowsBox.childCount) rowsBox.getChildAt(i).alpha = (p * 2f).coerceIn(0f, 1f)
         }
 
         val gridWidthDp = dm.widthPixels / dm.density - 2 * 52
@@ -276,6 +278,7 @@ class MainActivity : Activity() {
             addView(title, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
+        if (rowsBox.childCount >= 2) row.alpha = 0f   // filas de abajo: ocultas hasta bajar
         rowsBox.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         return list
     }
