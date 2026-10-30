@@ -158,9 +158,9 @@ def clock_font():
 
 def plan(line_screen, sky_ok, font):
     """Posición del reloj (top de las cifras, px) y si se usa el primer plano."""
-    bbox = font.getbbox("22:38")
+    bbox = font.getbbox("0123456789")
     digit_h = bbox[3] - bbox[1]
-    digit_w = bbox[2] - bbox[0]
+    digit_w = int(max(font.getlength(str(d)) for d in range(10)) * 1.04 * 4 + font.getlength(":") * 1.15)
     default_top = 48 * 2
     max_top = DOCK_TOP - digit_h
     if not sky_ok:
@@ -190,18 +190,28 @@ def preview(img, mask, p, font, out_path, bright):
     """Imita el reloj de cristal de la app: relleno con el fondo difuminado (aclarado u oscurecido),
     velo, brillo superior y sombra; después la montaña por delante."""
     base = img.convert("RGBA")
-    text = "22:38"
-    bbox = font.getbbox(text)
-    x = (W - (bbox[2] - bbox[0])) // 2 - bbox[0]
+    text = "00:16"
+    cell = max(font.getlength(str(d)) for d in range(10)) * 1.04
+    colon = font.getlength(":") * 1.15
+    total = sum(colon if c == ":" else cell for c in text)
+    bbox = font.getbbox("0123456789")
     y = p["digitTop"] - bbox[1]
+
+    def draw_tab(draw, fill, dy=0, **kw):
+        x = (W - total) / 2
+        for c in text:
+            w = colon if c == ":" else cell
+            cw = font.getlength(c)
+            draw.text((x + (w - cw) / 2, y + dy), c, font=font, fill=fill, **kw)
+            x += w
 
     # máscara de las cifras
     tmask = Image.new("L", base.size, 0)
-    ImageDraw.Draw(tmask).text((x, y), text, font=font, fill=255)
+    draw_tab(ImageDraw.Draw(tmask), 255)
     # sombra
     shadow = Image.new("RGBA", base.size, (0, 0, 0, 0))
     sh = Image.new("L", base.size, 0)
-    ImageDraw.Draw(sh).text((x, y + 12), text, font=font, fill=140)
+    draw_tab(ImageDraw.Draw(sh), 140, dy=12)
     sh = sh.filter(ImageFilter.GaussianBlur(18))
     shadow.putalpha(sh)
     comp = Image.alpha_composite(base, shadow)
@@ -227,8 +237,8 @@ def preview(img, mask, p, font, out_path, bright):
     comp = Image.alpha_composite(comp, gloss)
     # borde fino
     edge = Image.new("RGBA", base.size, (0, 0, 0, 0))
-    ImageDraw.Draw(edge).text((x, y), text, font=font, fill=(0, 0, 0, 0), stroke_width=2,
-                              stroke_fill=(48, 58, 72, 85) if bright else (255, 255, 255, 100))
+    draw_tab(ImageDraw.Draw(edge), (0, 0, 0, 0), stroke_width=2,
+             stroke_fill=(48, 58, 72, 85) if bright else (255, 255, 255, 100))
     comp = Image.alpha_composite(comp, edge)
     if p["useFg"]:
         fg = base.copy()

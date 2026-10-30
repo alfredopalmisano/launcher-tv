@@ -85,7 +85,7 @@ class GlassTextView @JvmOverloads constructor(
         glassShader = null
         if (photo != null && screenW > 0 && screenH > 0) {
             // Versión pequeña (difuminado barato) y aclarada de la foto, estirada a la pantalla.
-            val small = Bitmap.createScaledBitmap(photo, 48, 27, true)
+            val small = Bitmap.createScaledBitmap(photo.copy(Bitmap.Config.ARGB_8888, false), 48, 27, true)
             // Luminosidad media de la franja donde suele ir el reloj (centro, parte alta).
             var lum = 0L; var n = 0
             for (y in 2 until 14) for (x in 12 until 36) {
@@ -93,7 +93,10 @@ class GlassTextView @JvmOverloads constructor(
                 lum += (Color.red(c) * 299 + Color.green(c) * 587 + Color.blue(c) * 114) / 1000; n++
             }
             onBright = n > 0 && lum / n > 150
-            val blurred = Bitmap.createScaledBitmap(small, screenW, screenH, true)
+            // Dos pasos de escalado = desenfoque suave sin bandas ni rayas.
+            val mid = Bitmap.createScaledBitmap(small, 192, 108, true)
+            val blurred = Bitmap.createScaledBitmap(mid, screenW, screenH, true)
+            mid.recycle()
             small.recycle()
             glassBitmap = blurred
             glassShader = BitmapShader(blurred, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
@@ -101,10 +104,25 @@ class GlassTextView @JvmOverloads constructor(
         invalidate()
     }
 
+    /** Ancho de celda para las cifras (todas iguales, como en el iPhone) y para los dos puntos. */
+    private fun digitCell(): Float = (0..9).maxOf { fill.measureText(it.toString()) } * 1.04f
+    private fun colonCell(): Float = fill.measureText(":") * 1.15f
+    private fun totalWidth(): Float = text.sumOf { (if (it == ':') colonCell() else digitCell()).toDouble() }.toFloat()
+
+    /** Dibuja el texto cifra a cifra en celdas fijas, centrado en cx. */
+    private fun drawTabular(canvas: Canvas, paint: Paint, cx: Float, y: Float) {
+        var x = cx - totalWidth() / 2f
+        for (ch in text) {
+            val w = if (ch == ':') colonCell() else digitCell()
+            canvas.drawText(ch.toString(), x + w / 2f, y, paint)
+            x += w
+        }
+    }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val w = (fill.measureText(text) + textSizePx * 0.2f).toInt()
+        val w = (totalWidth() + textSizePx * 0.6f).toInt()
         val fm = fill.fontMetrics
-        val h = (fm.bottom - fm.top + textSizePx * 0.25f).toInt()
+        val h = (fm.bottom - fm.top + textSizePx * 0.45f).toInt()
         setMeasuredDimension(resolveSize(w, widthMeasureSpec), resolveSize(h, heightMeasureSpec))
     }
 
@@ -115,7 +133,7 @@ class GlassTextView @JvmOverloads constructor(
         val y = height / 2f - (fm.ascent + fm.descent) / 2f
 
         // 1) Sombra suave.
-        canvas.drawText(text, x, y, shadow)
+        drawTabular(canvas, shadow, x, y)
 
         // 2) Relleno: fondo difuminado y aclarado, alineado con lo que hay detrás.
         val shader = glassShader
@@ -129,32 +147,32 @@ class GlassTextView @JvmOverloads constructor(
             fill.shader = shader
             fill.colorFilter = LIGHTEN   // cristal esmerilado claro siempre, como el iPhone
             fill.alpha = 255
-            canvas.drawText(text, x, y, fill)
+            drawTabular(canvas, fill, x, y)
             // Velo para que siempre se lea: blanco sobre fondos oscuros, oscuro sobre cielos claros.
             fill.shader = null
             fill.colorFilter = null
             fill.color = Color.WHITE
             fill.alpha = (255 * (1f - glassAmount)).toInt()
-            canvas.drawText(text, x, y, fill)
+            drawTabular(canvas, fill, x, y)
         } else {
             fill.shader = null
             fill.colorFilter = null
             fill.color = Color.WHITE
             fill.alpha = 240
-            canvas.drawText(text, x, y, fill)
+            drawTabular(canvas, fill, x, y)
         }
 
         // 3) Brillo superior tipo cristal.
         val top = y + fm.ascent
         gloss.shader = LinearGradient(0f, top, 0f, y + fm.descent,
-            intArrayOf(0xA6FFFFFF.toInt(), 0x33FFFFFF, 0x00FFFFFF, 0x26FFFFFF),
+            intArrayOf(0x8CFFFFFF.toInt(), 0x2EFFFFFF, 0x00FFFFFF, 0x22FFFFFF),
             floatArrayOf(0f, 0.40f, 0.52f, 1f), Shader.TileMode.CLAMP)
-        canvas.drawText(text, x, y, gloss)
+        drawTabular(canvas, gloss, x, y)
 
         // 4) Borde fino para que los trazos queden nítidos.
         // sobre cielos muy claros el borde se oscurece un poco para que las cifras no se fundan
         edge.color = if (onBright) 0x55303A48 else 0x66FFFFFF
-        canvas.drawText(text, x, y, edge)
+        drawTabular(canvas, edge, x, y)
     }
 
     companion object {
