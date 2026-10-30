@@ -6,3 +6,4 @@ local.properties
 .DS_Store
 # Los fondos se descargan al compilar (ver scripts/descargar_fondos.sh)
 app/src/main/assets/wallpapers/
+app/src/main/assets/fonts/

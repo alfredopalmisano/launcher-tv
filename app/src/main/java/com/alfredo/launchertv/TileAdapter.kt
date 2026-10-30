@@ -41,6 +41,7 @@ class TileAdapter(
 
         init {
             card.clipToOutline = true
+            label.typeface = Fonts.medium(view.context)
             view.setOnClickListener { items.getOrNull(bindingAdapterPosition)?.let(onClick) }
             view.setOnLongClickListener { items.getOrNull(bindingAdapterPosition)?.let(onLongClick) ?: false }
             view.setOnFocusChangeListener { _, focused ->

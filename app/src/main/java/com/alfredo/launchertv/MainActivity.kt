@@ -21,7 +21,7 @@ import java.util.Locale
 
 class MainActivity : Activity() {
 
-    private lateinit var clock: TextView
+    private lateinit var clock: GlassTextView
     private lateinit var date: TextView
     private lateinit var dock: RecyclerView
     private lateinit var overlay: View
@@ -67,7 +67,16 @@ class MainActivity : Activity() {
         overlay = findViewById(R.id.overlay)
         grid = findViewById(R.id.grid)
         favorites = Favorites(this)
+
+        val dm = resources.displayMetrics
+        clock.typeface = Fonts.thin(this)
+        clock.textSizePx = 150f * dm.scaledDensity
+        date.typeface = Fonts.light(this)
+        findViewById<TextView>(R.id.credit).typeface = Fonts.light(this)
+        findViewById<TextView>(R.id.overlayTitle).typeface = Fonts.light(this)
+
         wallpapers = Wallpapers(this, findViewById(R.id.wallA), findViewById(R.id.wallB), findViewById(R.id.credit))
+        wallpapers.onPhotoChanged = { photo -> clock.setBackdrop(photo, dm.widthPixels, dm.heightPixels) }
 
         dock.layoutManager = LinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
         dock.adapter = dockAdapter

@@ -20,6 +20,9 @@ class Wallpapers(
     private val viewB: ImageView,
     private val credit: TextView
 ) {
+    /** Se llama con cada foto nueva (para el reloj de cristal). */
+    var onPhotoChanged: ((Bitmap) -> Unit)? = null
+
     private val handler = Handler(Looper.getMainLooper())
     private val files: List<String>
     private val credits: Map<String, String>
@@ -91,6 +94,7 @@ class Wallpapers(
             start()
         }
         kenBurns(incoming)
+        onPhotoChanged?.invoke(bmp)
 
         val author = credits[files[index]]
         credit.text = if (author != null) context.getString(R.string.credit, author) else ""
