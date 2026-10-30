@@ -92,8 +92,8 @@ class MainActivity : Activity() {
         dim = findViewById(R.id.dim)
         clockBox = findViewById(R.id.clockBox)
         dock = addRow(R.string.row_favorites, dockAdapter)
-        recentsRow = addRow(R.string.row_recents, recentsAdapter)
         systemRow = addRow(R.string.row_system, systemAdapter)
+        recentsRow = addRow(R.string.row_recents, recentsAdapter)
         grid = findViewById(R.id.grid)
         favorites = Favorites(this)
 
