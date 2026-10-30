@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/black">
+
+    <ImageView
+        android:id="@+id/wallA"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:contentDescription="@null" />
+
+    <ImageView
+        android:id="@+id/wallB"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:alpha="0"
+        android:contentDescription="@null" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/scrim" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_gravity="top|start"
+        android:paddingStart="64dp"
+        android:paddingTop="44dp"
+        android:paddingEnd="64dp">
+
+        <TextView
+            android:id="@+id/clock"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFFFF"
+            android:textSize="104sp"
+            android:fontFamily="sans-serif-thin"
+            android:includeFontPadding="false"
+            android:letterSpacing="-0.02"
+            android:shadowColor="#80000000"
+            android:shadowDx="0"
+            android:shadowDy="4"
+            android:shadowRadius="18" />
+
+        <TextView
+            android:id="@+id/date"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:layout_marginStart="6dp"
+            android:textColor="#E6FFFFFF"
+            android:textSize="22sp"
+            android:fontFamily="sans-serif-light"
+            android:shadowColor="#80000000"
+            android:shadowDx="0"
+            android:shadowDy="2"
+            android:shadowRadius="10" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/credit"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="52dp"
+        android:layout_marginEnd="64dp"
+        android:textColor="#99FFFFFF"
+        android:textSize="13sp"
+        android:fontFamily="sans-serif-light" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/dock"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_marginBottom="36dp"
+        android:paddingStart="52dp"
+        android:paddingEnd="52dp"
+        android:clipToPadding="false"
+        android:clipChildren="false"
+        android:orientation="horizontal" />
+
+    <FrameLayout
+        android:id="@+id/overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#E0000000"
+        android:visibility="gone"
+        android:clipChildren="false">
+
+        <TextView
+            android:id="@+id/overlayTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="64dp"
+            android:layout_marginTop="44dp"
+            android:text="@string/all_apps_title"
+            android:textColor="#FFFFFFFF"
+            android:textSize="32sp"
+            android:fontFamily="sans-serif-light" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="64dp"
+            android:layout_marginTop="92dp"
+            android:text="@string/all_apps_hint"
+            android:textColor="#99FFFFFF"
+            android:textSize="14sp" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/grid"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_marginTop="124dp"
+            android:paddingStart="52dp"
+            android:paddingEnd="52dp"
+            android:paddingBottom="40dp"
+            android:clipToPadding="false"
+            android:clipChildren="false" />
+    </FrameLayout>
+</FrameLayout>

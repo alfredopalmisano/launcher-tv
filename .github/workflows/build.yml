@@ -1,0 +1,51 @@
+name: Compilar APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.10.2
+
+      - name: Descargar fondos de pantalla
+        run: bash scripts/descargar_fondos.sh
+
+      - name: Compilar
+        run: gradle assembleRelease --no-daemon
+
+      - name: Preparar APK
+        run: cp app/build/outputs/apk/release/app-release.apk launcher-tv.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: launcher-tv
+          path: launcher-tv.apk
+
+      - name: Publicar como "latest"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git tag -f latest
+          git push -f origin latest
+          gh release delete latest -y --cleanup-tag=false 2>/dev/null || true
+          gh release create latest launcher-tv.apk \
+            --title "Última versión" \
+            --notes "APK compilado automáticamente desde el commit ${GITHUB_SHA::7}."

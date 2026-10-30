@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Inicio</string>
+    <string name="all_apps">Apps</string>
+    <string name="all_apps_title">Todas las aplicaciones</string>
+    <string name="all_apps_hint">OK para abrir · Mantén pulsado OK para añadir o quitar del dock</string>
+    <string name="added_to_dock">%1$s añadida al dock</string>
+    <string name="removed_from_dock">%1$s quitada del dock</string>
+    <string name="cannot_open">No se pudo abrir %1$s</string>
+    <string name="hdmi_generic">HDMI %1$d</string>
+    <string name="credit">Foto: %1$s · Unsplash</string>
+</resources>

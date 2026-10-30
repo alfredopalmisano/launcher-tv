@@ -1,0 +1,10 @@
+# Fondos de naturaleza (licencia Unsplash). Formato: url | autor
+# Se descargan al compilar y se meten dentro del APK. Añade o quita líneas a tu gusto.
+https://images.unsplash.com/photo-1742845918430-c6093f93f740 | Philipp
+https://images.unsplash.com/photo-1766009242938-ffea3cf8c178 | Márcio Quimbundo
+https://images.unsplash.com/photo-1723134090745-f6402a0c014d | Ed Wingate
+https://images.unsplash.com/photo-1653663149141-0359c75e591a | R Gray
+https://images.unsplash.com/photo-1770341989953-f3efb336f7eb | Intricate Explorer
+https://images.unsplash.com/photo-1779551363999-707505ab4102 | Bernd Dittrich
+https://images.unsplash.com/photo-1708457642893-9eafc31ca8a8 | Karthik Sreenivas
+https://images.unsplash.com/photo-1766221072212-cf2f9383221c | Aivars Vilks
