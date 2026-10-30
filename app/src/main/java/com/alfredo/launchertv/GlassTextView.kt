@@ -85,7 +85,8 @@ class GlassTextView @JvmOverloads constructor(
         glassShader = null
         if (photo != null && screenW > 0 && screenH > 0) {
             // Versión pequeña (difuminado barato) y aclarada de la foto, estirada a la pantalla.
-            val small = Bitmap.createScaledBitmap(photo.copy(Bitmap.Config.ARGB_8888, false), 48, 27, true)
+            // Cristal fiel: el fondo real, apenas suavizado (1/4 de resolución), sin cambiar el color.
+            val small = Bitmap.createScaledBitmap(photo.copy(Bitmap.Config.ARGB_8888, false), screenW / 4, screenH / 4, true)
             // Luminosidad media de la franja donde suele ir el reloj (centro, parte alta).
             var lum = 0L; var n = 0
             for (y in 2 until 14) for (x in 12 until 36) {
@@ -93,10 +94,7 @@ class GlassTextView @JvmOverloads constructor(
                 lum += (Color.red(c) * 299 + Color.green(c) * 587 + Color.blue(c) * 114) / 1000; n++
             }
             onBright = n > 0 && lum / n > 150
-            // Dos pasos de escalado = desenfoque suave sin bandas ni rayas.
-            val mid = Bitmap.createScaledBitmap(small, 192, 108, true)
-            val blurred = Bitmap.createScaledBitmap(mid, screenW, screenH, true)
-            mid.recycle()
+            val blurred = Bitmap.createScaledBitmap(small, screenW, screenH, true)
             small.recycle()
             glassBitmap = blurred
             glassShader = BitmapShader(blurred, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
@@ -141,8 +139,8 @@ class GlassTextView @JvmOverloads constructor(
             getLocationOnScreen(screenPos)
             shaderMatrix.reset()
             // Refracción: el fondo se ve a través del cristal ligeramente desplazado y ampliado.
-            shaderMatrix.postScale(1.03f, 1.03f, (width / 2f), (height / 2f))
-            shaderMatrix.postTranslate(-screenPos[0].toFloat(), -screenPos[1].toFloat() + 6f)
+            shaderMatrix.postScale(1.025f, 1.025f, (width / 2f), (height / 2f))
+            shaderMatrix.postTranslate(-screenPos[0].toFloat(), -screenPos[1].toFloat() + 8f)
             shader.setLocalMatrix(shaderMatrix)
             fill.shader = shader
             fill.colorFilter = LIGHTEN   // cristal esmerilado claro siempre, como el iPhone
@@ -189,11 +187,11 @@ class GlassTextView @JvmOverloads constructor(
 
         /** Aclara y desatura un poco el fondo para que parezca cristal esmerilado. */
         private val LIGHTEN = ColorMatrixColorFilter(ColorMatrix().apply {
-            setSaturation(1.05f)   // deja pasar el color del cielo
+            // Color exacto del fondo; solo un pelín más luminoso para que parezca vidrio y no un agujero.
             postConcat(ColorMatrix(floatArrayOf(
-                0.92f, 0f, 0f, 0f, 28f,
-                0f, 0.92f, 0f, 0f, 28f,
-                0f, 0f, 0.92f, 0f, 28f,
+                1f, 0f, 0f, 0f, 14f,
+                0f, 1f, 0f, 0f, 14f,
+                0f, 0f, 1f, 0f, 14f,
                 0f, 0f, 0f, 1f, 0f
             )))
         })

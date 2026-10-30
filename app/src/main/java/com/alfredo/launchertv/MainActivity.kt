@@ -101,7 +101,7 @@ class MainActivity : Activity() {
         val dm = resources.displayMetrics
         clock.typeface = Fonts.clock(this)
         clock.textSizePx = 180f * dm.scaledDensity
-        clock.glassAmount = 0.86f
+        clock.glassAmount = 0.92f
         findViewById<TextView>(R.id.credit).typeface = Fonts.light(this)
         findViewById<TextView>(R.id.overlayTitle).typeface = Fonts.light(this)
 
@@ -295,8 +295,10 @@ class MainActivity : Activity() {
                     addView(list, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
                 }
                 list.setPadding((16 * d).toInt(), 0, (16 * d).toInt(), 0)
+                list.isHorizontalFadingEdgeEnabled = true
+                list.setFadingEdgeLength((56 * d).toInt())
                 addView(shelf, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                    marginStart = (40 * d).toInt(); marginEnd = (40 * d).toInt()
+                    marginStart = (24 * d).toInt(); marginEnd = (24 * d).toInt()
                 })
             } else {
                 addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))

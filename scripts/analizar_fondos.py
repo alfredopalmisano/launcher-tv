@@ -216,10 +216,9 @@ def preview(img, mask, p, font, out_path, bright):
     shadow.putalpha(sh)
     comp = Image.alpha_composite(base, shadow)
     # relleno de cristal: fondo muy difuminado
-    glass = img.resize((48, 27), Image.BILINEAR).resize((W, H), Image.BILINEAR).convert("RGB")
-    g = np.asarray(glass).astype(np.float32)
-    g = g * 0.92 + 28
-    veil = np.array([255, 255, 255], dtype=np.float32); veil_a = 0.14
+    glass = img.resize((W // 4, H // 4), Image.BILINEAR).resize((W, H), Image.BILINEAR).convert("RGB")
+    g = np.asarray(glass).astype(np.float32) + 14
+    veil = np.array([255, 255, 255], dtype=np.float32); veil_a = 0.08
     g = g * (1 - veil_a) + veil * veil_a
     glass = Image.fromarray(np.clip(g, 0, 255).astype(np.uint8), "RGB").convert("RGBA")
     glass.putalpha(tmask)
@@ -229,7 +228,7 @@ def preview(img, mask, p, font, out_path, bright):
     top, bot = p["digitTop"], p["digitTop"] + p["digitH"]
     for yy in range(top, min(bot, H)):
         t = (yy - top) / max(1, (bot - top))
-        grad[yy, :] = int(166 * (1 - t) ** 2) if t < 0.5 else int(30 * (t - 0.5) * 2)
+        grad[yy, :] = int(140 * (1 - t) ** 2) if t < 0.5 else int(26 * (t - 0.5) * 2)
     gloss = Image.new("RGBA", base.size, (255, 255, 255, 0))
     ga = Image.fromarray(grad, "L")
     ga = Image.fromarray((np.asarray(ga).astype(np.uint16) * np.asarray(tmask) // 255).astype(np.uint8), "L")
