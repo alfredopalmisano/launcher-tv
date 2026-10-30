@@ -36,6 +36,12 @@ android {
         }
     }
 
+    // No va a Google Play: no aplicar sus reglas de publicación.
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
