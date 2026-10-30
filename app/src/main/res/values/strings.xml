@@ -8,5 +8,5 @@
     <string name="removed_from_dock">%1$s quitada del dock</string>
     <string name="cannot_open">No se pudo abrir %1$s</string>
     <string name="hdmi_generic">HDMI %1$d</string>
-    <string name="credit">Foto: %1$s · Unsplash</string>
+    <string name="credit">Fondo actual: foto de %1$s · Unsplash</string>
 </resources>
