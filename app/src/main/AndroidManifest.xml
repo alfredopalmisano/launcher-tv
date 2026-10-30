@@ -5,6 +5,9 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:label="@string/app_name"
@@ -45,5 +48,13 @@
         </receiver>
 
         <receiver android:name=".SleepReceiver" android:exported="false" />
+
+        <!-- Mando web para el móvil (http://IP-de-la-tele:8080). -->
+        <service android:name=".RemoteService" android:exported="false" />
+        <receiver android:name=".BootReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

@@ -92,6 +92,7 @@ class MainActivity : Activity() {
         topSpace = findViewById(R.id.topSpace)
         dim = findViewById(R.id.dim)
         clockBox = findViewById(R.id.clockBox)
+        RemoteService.start(this)
         dock = addRow(R.string.row_favorites, dockAdapter)
         systemRow = addRow(R.string.row_system, systemAdapter)
         recentsRow = addRow(R.string.row_recents, recentsAdapter)
@@ -327,6 +328,7 @@ class MainActivity : Activity() {
         sys.add(Tile.Action("bt", getString(R.string.bluetooth), R.drawable.ic_bluetooth))
         sys.add(Tile.SleepTile)
         sys.add(Tile.Action("reboot", getString(R.string.reboot), R.drawable.ic_restart))
+        sys.add(Tile.Action("remote", getString(R.string.remote), R.drawable.ic_phone))
         sys.add(Tile.Store)
         sys.add(Tile.SettingsTile)
         systemAdapter.submit(sys)
@@ -376,6 +378,7 @@ class MainActivity : Activity() {
             is Tile.Action -> when (tile.id) {
                 "wifi" -> if (!tryStart(Intent(Settings.ACTION_WIFI_SETTINGS))) tryStart(Intent(Settings.ACTION_SETTINGS))
                 "bt" -> if (!tryStart(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))) tryStart(Intent(Settings.ACTION_SETTINGS))
+                "remote" -> showRemoteInfo()
                 "reboot" -> AlertDialog.Builder(this, R.style.Theme_Launcher_Dialog)
                     .setTitle(R.string.reboot_title)
                     .setItems(arrayOf(getString(R.string.reboot), getString(R.string.menu_cancel))) { _, which ->
@@ -411,6 +414,21 @@ class MainActivity : Activity() {
         val viewTop = digitTop - clock.digitTopOffset()
         android.util.Log.i(TAG, "reloj: digitTop=%.0f viewTop=%.0f fg=%b".format(digitTop, viewTop, plan?.useFg == true))
         box.animate().translationY(viewTop - 72 * d).setDuration(1200).start()
+    }
+
+    /** Mando desde el móvil: muestra la dirección a abrir en el iPhone. */
+    private fun showRemoteInfo() {
+        RemoteService.start(this)
+        val ip = try {
+            java.net.NetworkInterface.getNetworkInterfaces().toList().flatMap { it.inetAddresses.toList() }
+                .firstOrNull { !it.isLoopbackAddress && it is java.net.Inet4Address }?.hostAddress
+        } catch (e: Exception) { null }
+        val url = if (ip != null) "http://$ip:${RemoteService.PORT}" else getString(R.string.remote_no_wifi)
+        AlertDialog.Builder(this, R.style.Theme_Launcher_Dialog)
+            .setTitle(R.string.remote_title)
+            .setMessage(getString(R.string.remote_message, url, RemoteService.pin(this)))
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     /** Temporizador de apagado (tile Dormir). */

@@ -32,4 +32,8 @@
     <string name="bluetooth">Bluetooth</string>
     <string name="reboot">Reiniciar</string>
     <string name="reboot_title">¿Reiniciar la tele?</string>
+    <string name="remote">Mando</string>
+    <string name="remote_title">Mando desde el móvil</string>
+    <string name="remote_message">Abre en el iPhone (misma Wi-Fi):\n\n%1$s\n\nPIN de esta tele: %2$s\n\nEn Safari: Compartir → "Añadir a pantalla de inicio" para tenerlo como una app.</string>
+    <string name="remote_no_wifi">La tele no está conectada a la red</string>
 </resources>
