@@ -208,12 +208,8 @@ def preview(img, mask, p, font, out_path, bright):
     # relleno de cristal: fondo muy difuminado
     glass = img.resize((48, 27), Image.BILINEAR).resize((W, H), Image.BILINEAR).convert("RGB")
     g = np.asarray(glass).astype(np.float32)
-    if bright:
-        g = g * 0.55 - 25
-        veil = np.array([26, 36, 48], dtype=np.float32); veil_a = 0.28
-    else:
-        g = g * 0.75 + 70
-        veil = np.array([255, 255, 255], dtype=np.float32); veil_a = 0.28
+    g = g * 0.75 + 70
+    veil = np.array([255, 255, 255], dtype=np.float32); veil_a = 0.28
     g = g * (1 - veil_a) + veil * veil_a
     glass = Image.fromarray(np.clip(g, 0, 255).astype(np.uint8), "RGB").convert("RGBA")
     glass.putalpha(tmask)
@@ -231,7 +227,8 @@ def preview(img, mask, p, font, out_path, bright):
     comp = Image.alpha_composite(comp, gloss)
     # borde fino
     edge = Image.new("RGBA", base.size, (0, 0, 0, 0))
-    ImageDraw.Draw(edge).text((x, y), text, font=font, fill=(0, 0, 0, 0), stroke_width=2, stroke_fill=(255, 255, 255, 90))
+    ImageDraw.Draw(edge).text((x, y), text, font=font, fill=(0, 0, 0, 0), stroke_width=2,
+                              stroke_fill=(48, 58, 72, 85) if bright else (255, 255, 255, 100))
     comp = Image.alpha_composite(comp, edge)
     if p["useFg"]:
         fg = base.copy()

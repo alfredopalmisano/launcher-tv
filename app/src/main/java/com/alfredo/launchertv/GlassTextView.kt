@@ -70,7 +70,7 @@ class GlassTextView @JvmOverloads constructor(
         shadow.textAlign = Paint.Align.CENTER
         edge.textAlign = Paint.Align.CENTER
         shadow.color = Color.TRANSPARENT
-        shadow.setShadowLayer(40f, 0f, 12f, 0x8C000000.toInt())
+        shadow.setShadowLayer(44f, 0f, 14f, 0x99000000.toInt())
         edge.style = Paint.Style.STROKE
         edge.strokeWidth = 1.2f
         edge.color = 0x66FFFFFF
@@ -125,13 +125,13 @@ class GlassTextView @JvmOverloads constructor(
             shaderMatrix.postTranslate(-screenPos[0].toFloat(), -screenPos[1].toFloat())
             shader.setLocalMatrix(shaderMatrix)
             fill.shader = shader
-            fill.colorFilter = if (onBright) DARKEN else LIGHTEN
+            fill.colorFilter = LIGHTEN   // cristal esmerilado claro siempre, como el iPhone
             fill.alpha = 255
             canvas.drawText(text, x, y, fill)
             // Velo para que siempre se lea: blanco sobre fondos oscuros, oscuro sobre cielos claros.
             fill.shader = null
             fill.colorFilter = null
-            fill.color = if (onBright) 0xFF1A2430.toInt() else Color.WHITE
+            fill.color = Color.WHITE
             fill.alpha = (255 * (1f - glassAmount)).toInt()
             canvas.drawText(text, x, y, fill)
         } else {
@@ -150,7 +150,8 @@ class GlassTextView @JvmOverloads constructor(
         canvas.drawText(text, x, y, gloss)
 
         // 4) Borde fino para que los trazos queden nítidos.
-        edge.color = if (onBright) 0x66FFFFFF else 0x66FFFFFF
+        // sobre cielos muy claros el borde se oscurece un poco para que las cifras no se fundan
+        edge.color = if (onBright) 0x55303A48 else 0x66FFFFFF
         canvas.drawText(text, x, y, edge)
     }
 
