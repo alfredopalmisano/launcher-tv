@@ -57,6 +57,7 @@ class TileAdapter(
         private val icon: ImageView = view.findViewById(R.id.icon)
         private val label: TextView = view.findViewById(R.id.label)
         private val badge: ImageView = view.findViewById(R.id.badge)
+        private val shine: View = view.findViewById(R.id.shine)
         private val focusDrawable = view.context.getDrawable(R.drawable.tile_focus)
         private val movingDrawable = view.context.getDrawable(R.drawable.tile_moving)
         private val white = ColorStateList.valueOf(0xFFFFFFFF.toInt())
@@ -67,9 +68,21 @@ class TileAdapter(
             view.setOnClickListener { items.getOrNull(bindingAdapterPosition)?.let(onClick) }
             view.setOnLongClickListener { items.getOrNull(bindingAdapterPosition)?.let(onLongClick) ?: false }
             view.setOnFocusChangeListener { _, focused ->
-                val scale = if (focused) 1.10f else 1f
-                card.animate().scaleX(scale).scaleY(scale).translationZ(if (focused) 16f else 0f)
-                    .setDuration(180).setInterpolator(android.view.animation.DecelerateInterpolator()).start()
+                val scale = if (focused) 1.12f else 1f
+                card.animate().scaleX(scale).scaleY(scale).translationZ(if (focused) 18f else 0f)
+                    .setDuration(200).setInterpolator(android.view.animation.DecelerateInterpolator()).start()
+                // Luz que barre el cristal al enfocar y se queda como reflejo suave.
+                shine.animate().cancel()
+                if (focused) {
+                    shine.translationX = -card.width.toFloat()
+                    shine.alpha = 0.95f
+                    shine.animate().translationX(card.width.toFloat()).setDuration(520)
+                        .setInterpolator(android.view.animation.DecelerateInterpolator())
+                        .withEndAction { shine.translationX = 0f; shine.alpha = 0f; shine.animate().alpha(0.35f).setDuration(250).start() }
+                        .start()
+                } else {
+                    shine.animate().alpha(0f).setDuration(150).start()
+                }
                 if (showLabels) label.animate().alpha(if (focused) 1f else 0f).translationY(if (focused) 0f else -6f).setDuration(180).start()
                 val tile = items.getOrNull(bindingAdapterPosition)
                 card.foreground = when {

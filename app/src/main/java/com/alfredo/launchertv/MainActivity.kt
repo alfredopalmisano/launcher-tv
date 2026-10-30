@@ -285,7 +285,22 @@ class MainActivity : Activity() {
             clipChildren = false
             clipToPadding = false
             if (!first) addView(title, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-            addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            if (first) {
+                // Estante de cristal detrás del dock (estilo Apple TV).
+                val shelf = android.widget.FrameLayout(this@MainActivity).apply {
+                    background = getDrawable(R.drawable.dock_shelf)
+                    clipChildren = false
+                    clipToPadding = false
+                    setPadding((8 * d).toInt(), (6 * d).toInt(), (8 * d).toInt(), (6 * d).toInt())
+                    addView(list, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+                }
+                list.setPadding((16 * d).toInt(), 0, (16 * d).toInt(), 0)
+                addView(shelf, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    marginStart = (40 * d).toInt(); marginEnd = (40 * d).toInt()
+                })
+            } else {
+                addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            }
         }
         if (rowsBox.childCount >= 2) row.alpha = 0f   // filas de abajo: ocultas hasta bajar
         rowsBox.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -490,7 +505,7 @@ class MainActivity : Activity() {
     }
 
     companion object {
-        private const val DOCK_TILE_DP = 196
+        private const val DOCK_TILE_DP = 168
         private const val GRID_TILE_DP = 144
         private const val ROW_TILE_DP = 150
         private const val PROGRAM_TILE_DP = 200

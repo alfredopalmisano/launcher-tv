@@ -36,6 +36,13 @@
             android:layout_height="match_parent"
             android:background="@drawable/tile_gloss" />
 
+        <View
+            android:id="@+id/shine"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/tile_shine"
+            android:alpha="0" />
+
         <ImageView
             android:id="@+id/badge"
             android:layout_width="34dp"
