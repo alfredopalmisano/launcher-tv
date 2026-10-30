@@ -145,8 +145,8 @@ class GlassTextView @JvmOverloads constructor(
         // 3) Brillo superior tipo cristal.
         val top = y + fm.ascent
         gloss.shader = LinearGradient(0f, top, 0f, y + fm.descent,
-            intArrayOf(0x8CFFFFFF.toInt(), 0x26FFFFFF, 0x00FFFFFF, 0x1AFFFFFF),
-            floatArrayOf(0f, 0.42f, 0.5f, 1f), Shader.TileMode.CLAMP)
+            intArrayOf(0xA6FFFFFF.toInt(), 0x33FFFFFF, 0x00FFFFFF, 0x26FFFFFF),
+            floatArrayOf(0f, 0.40f, 0.52f, 1f), Shader.TileMode.CLAMP)
         canvas.drawText(text, x, y, gloss)
 
         // 4) Borde fino para que los trazos queden nítidos.

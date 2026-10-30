@@ -13,7 +13,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 W, H = 1920, 1080          # pantalla
-MW, MH = 480, 270          # tamaño de la máscara
+MW, MH = 960, 540          # tamaño de la máscara (la mitad de la pantalla; borde fino)
 FONT_PX = 360              # 180 sp × 2 (densidad 320)
 FONT_WGHT = 200
 OVERLAP = 0.20             # parte del reloj (en altura) que tapan las cumbres
@@ -93,11 +93,30 @@ def skyline_mask(img):
     mask = np.zeros((MH, MW), dtype=np.uint8)
     ys = np.arange(MH)[:, None]
     mask[ys >= smooth[None, :]] = 255
-    m = Image.fromarray(mask, "L").filter(ImageFilter.GaussianBlur(1.0))
+    m = Image.fromarray(mask, "L").filter(ImageFilter.GaussianBlur(0.8))
     return m, smooth * (H / MH), bright_top
 
 
 _ML = {}
+
+
+def _box(x, r):
+    """Media en ventana (2r+1)² con sumas acumuladas (borde replicado)."""
+    xp = np.pad(x, r, mode="edge")
+    c = np.cumsum(np.cumsum(xp, axis=0), axis=1)
+    c = np.pad(c, ((1, 0), (1, 0)))
+    h, w = x.shape
+    k = 2 * r + 1
+    return (c[k:k + h, k:k + w] - c[:h, k:k + w] - c[k:k + h, :w] + c[:h, :w]) / (k * k)
+
+
+def guided_filter(guide, p, r=8, eps=2e-3):
+    """Filtro guiado (He et al.): ajusta el borde de la probabilidad p al borde real de la foto."""
+    mI = _box(guide, r); mp = _box(p, r)
+    cI = _box(guide * guide, r); cIp = _box(guide * p, r)
+    vI = cI - mI * mI; cov = cIp - mI * mp
+    a = cov / (vI + eps); b = mp - a * mI
+    return _box(a, r) * guide + _box(b, r)
 
 
 def sky_pixels_ml(img):
@@ -118,8 +137,11 @@ def sky_pixels_ml(img):
             logits = _ML["model"](**inputs).logits
         up = torch.nn.functional.interpolate(logits, size=(MH, MW), mode="bilinear", align_corners=False)
         probs = torch.softmax(up, dim=1)[0]
-        sky = (probs[2] > 0.5).numpy()          # 2 = sky en ADE20K
-        return sky
+        p_sky = probs[2].numpy().astype(np.float32)          # 2 = sky en ADE20K
+        # Afinar el borde con la propia foto (filtro guiado): precisión al píxel en la silueta.
+        guide = np.asarray(img.convert("L").resize((MW, MH), Image.LANCZOS)).astype(np.float32) / 255.0
+        q = guided_filter(guide, p_sky, r=6, eps=1e-3)
+        return q > 0.5
     except Exception as e:
         print("  (modelo no disponible:", e, ")")
         return None
@@ -188,10 +210,10 @@ def preview(img, mask, p, font, out_path, bright):
     g = np.asarray(glass).astype(np.float32)
     if bright:
         g = g * 0.55 - 25
-        veil = np.array([26, 36, 48], dtype=np.float32); veil_a = 0.38
+        veil = np.array([26, 36, 48], dtype=np.float32); veil_a = 0.28
     else:
         g = g * 0.75 + 70
-        veil = np.array([255, 255, 255], dtype=np.float32); veil_a = 0.38
+        veil = np.array([255, 255, 255], dtype=np.float32); veil_a = 0.28
     g = g * (1 - veil_a) + veil * veil_a
     glass = Image.fromarray(np.clip(g, 0, 255).astype(np.uint8), "RGB").convert("RGBA")
     glass.putalpha(tmask)
@@ -201,7 +223,7 @@ def preview(img, mask, p, font, out_path, bright):
     top, bot = p["digitTop"], p["digitTop"] + p["digitH"]
     for yy in range(top, min(bot, H)):
         t = (yy - top) / max(1, (bot - top))
-        grad[yy, :] = int(140 * (1 - t) ** 2) if t < 0.5 else int(20 * (t - 0.5) * 2)
+        grad[yy, :] = int(166 * (1 - t) ** 2) if t < 0.5 else int(30 * (t - 0.5) * 2)
     gloss = Image.new("RGBA", base.size, (255, 255, 255, 0))
     ga = Image.fromarray(grad, "L")
     ga = Image.fromarray((np.asarray(ga).astype(np.uint16) * np.asarray(tmask) // 255).astype(np.uint8), "L")
