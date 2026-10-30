@@ -36,19 +36,6 @@
             android:id="@+id/clock"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content" />
-
-        <TextView
-            android:id="@+id/date"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="-6dp"
-            android:textColor="#F2FFFFFF"
-            android:textSize="24sp"
-            android:letterSpacing="0.01"
-            android:shadowColor="#99000000"
-            android:shadowDx="0"
-            android:shadowDy="3"
-            android:shadowRadius="14" />
     </LinearLayout>
 
     <TextView

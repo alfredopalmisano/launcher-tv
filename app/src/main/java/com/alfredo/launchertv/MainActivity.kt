@@ -22,7 +22,6 @@ import java.util.Locale
 class MainActivity : Activity() {
 
     private lateinit var clock: GlassTextView
-    private lateinit var date: TextView
     private lateinit var dock: RecyclerView
     private lateinit var overlay: View
     private lateinit var grid: RecyclerView
@@ -35,13 +34,11 @@ class MainActivity : Activity() {
     private var apps: List<Tile.App> = emptyList()
     private val handler = Handler(Looper.getMainLooper())
     private val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-    private val dateFormat = SimpleDateFormat("EEEE, d 'de' MMMM", Locale("es", "ES"))
 
     private val tick = object : Runnable {
         override fun run() {
             val now = Date()
             clock.text = timeFormat.format(now)
-            date.text = dateFormat.format(now).replaceFirstChar { it.uppercase() }
             handler.postDelayed(this, 1000L - (System.currentTimeMillis() % 1000L) + 20L)
         }
     }
@@ -62,7 +59,6 @@ class MainActivity : Activity() {
         setContentView(R.layout.activity_main)
 
         clock = findViewById(R.id.clock)
-        date = findViewById(R.id.date)
         dock = findViewById(R.id.dock)
         overlay = findViewById(R.id.overlay)
         grid = findViewById(R.id.grid)
@@ -71,7 +67,6 @@ class MainActivity : Activity() {
         val dm = resources.displayMetrics
         clock.typeface = Fonts.thin(this)
         clock.textSizePx = 150f * dm.scaledDensity
-        date.typeface = Fonts.light(this)
         findViewById<TextView>(R.id.credit).typeface = Fonts.light(this)
         findViewById<TextView>(R.id.overlayTitle).typeface = Fonts.light(this)
 
