@@ -1,4 +1,4 @@
-# Fondos (licencia Unsplash, gratis). Formato: url | autor
+# Fondos (licencia Unsplash, gratis). Formato: url | autor | opciones (fg=no: sin montaña delante del reloj)
 # Fuente: unsplash.com/es/s/fotos/mountain-wallpaper (elegidas las de cumbres contra el cielo,
 # que es donde mejor funciona el reloj detrás de las montañas). Añade o quita líneas a tu gusto.
 https://images.unsplash.com/photo-1464822759023-fed622ff2c3b | Kalen Emsley
@@ -7,12 +7,12 @@ https://images.unsplash.com/photo-1508739773434-c26b3d09e071 | Cristina Gottardi
 https://images.unsplash.com/photo-1519681393784-d120267933ba | Benjamin Voros
 https://images.unsplash.com/photo-1485470733090-0aae1788d5af | Daniel Leone
 https://images.unsplash.com/photo-1554629947-334ff61d85dc | Mads Schmidt Rasmussen
-https://images.unsplash.com/photo-1782771116101-0320275aa1b2 | Alin Gavriliuc
+https://images.unsplash.com/photo-1782771116101-0320275aa1b2 | Alin Gavriliuc | fg=no
 https://images.unsplash.com/photo-1483728642387-6c3bdd6c93e5 | Daniel Leone
 https://images.unsplash.com/photo-1480497490787-505ec076689f | Tim Stief
 https://images.unsplash.com/photo-1511300636408-a63a89df3482 | Luca Micheli
 https://images.unsplash.com/photo-1786513426338-f9de21c2315e | Abishigan Raguraam
 https://images.unsplash.com/photo-1771642248207-1b254c7fb073 | Intricate Explorer
-https://images.unsplash.com/photo-1772089003128-2092ae0191bf | ki Zhang
+https://images.unsplash.com/photo-1772089003128-2092ae0191bf | ki Zhang | fg=no
 https://images.unsplash.com/photo-1768834605062-4eef74ce4683 | Alan Jiang
 https://images.unsplash.com/photo-1764014588206-3c2647a34911 | Marek Piwnicki

@@ -9,13 +9,14 @@ n=0
 while IFS= read -r linea; do
   linea="${linea%%#*}"
   [ -z "${linea// /}" ] && continue
-  url="$(echo "${linea%%|*}" | xargs)"
-  autor="$(echo "${linea#*|}" | xargs)"
+  url="$(echo "$linea" | cut -d'|' -f1 | xargs)"
+  autor="$(echo "$linea" | cut -d'|' -f2 | xargs)"
+  opciones="$(echo "$linea" | cut -d'|' -f3- -s | xargs)"
   url="${url%%\?*}?fm=jpg&w=1920&h=1080&fit=crop&q=82"
   n=$((n + 1))
   nombre="$(printf '%02d.jpg' "$n")"
   if curl -fsSL --retry 3 -o "$OUT/$nombre" "$url"; then
-    echo "$nombre|$autor" >> "$OUT/creditos.txt"
+    echo "$nombre|$autor|$opciones" >> "$OUT/creditos.txt"
     echo "✓ $nombre ($autor)"
   else
     echo "✗ no se pudo descargar: $url"

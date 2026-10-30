@@ -166,6 +166,14 @@ def main():
     os.makedirs(out_prev, exist_ok=True)
     font = clock_font()
     layout = {}
+    # opciones por foto (tercera columna de creditos.txt), p. ej. fg=no
+    options = {}
+    cred = os.path.join(src, "creditos.txt")
+    if os.path.exists(cred):
+        for ln in open(cred, encoding="utf-8"):
+            parts = [x.strip() for x in ln.split("|")]
+            if len(parts) >= 3:
+                options[parts[0]] = parts[2]
     for name in sorted(os.listdir(src)):
         if not name.lower().endswith(".jpg"):
             continue
@@ -176,6 +184,10 @@ def main():
         sky_frac = float(line.mean()) / H
         sky_ok = bright_top and 0.12 <= sky_frac <= 0.92
         p = plan(line, sky_ok, font)
+        if "fg=no" in options.get(name, ""):
+            p["useFg"] = False
+            p["coverage"] = 0.0
+            p["digitTop"] = int(min(48 * 2, DOCK_TOP - p["digitH"]))
         # ¿cielo claro detrás del reloj? (para el cristal ahumado)
         band = np.asarray(img.resize((48, 27)).convert("L"))[2:14, 12:36]
         bright = float(band.mean()) > 150
