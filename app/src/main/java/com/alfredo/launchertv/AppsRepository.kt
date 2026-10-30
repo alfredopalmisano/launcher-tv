@@ -24,6 +24,9 @@ object AppsRepository {
                 val ai = ri.activityInfo ?: continue
                 val pkg = ai.packageName
                 if (pkg == self || result.containsKey(pkg)) continue
+                // Sin icono de tele (categoría genérica): solo apps instaladas por el usuario,
+                // nunca componentes del sistema (p. ej. "Netflix Observer" del fabricante).
+                if (!withBanner && (ai.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0) continue
                 val label = ri.loadLabel(pm)?.toString()?.trim().orEmpty().ifEmpty { pkg }
                 val banner = if (withBanner) safe { ai.loadBanner(pm) } ?: safe { ri.activityInfo.applicationInfo.loadBanner(pm) } else null
                 val icon = safe { ri.loadIcon(pm) }
