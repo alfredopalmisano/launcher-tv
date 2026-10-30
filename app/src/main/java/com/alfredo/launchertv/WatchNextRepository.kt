@@ -27,13 +27,19 @@ object WatchNextRepository {
                 if (iBrowsable >= 0 && !c.isNull(iBrowsable) && c.getInt(iBrowsable) == 0) continue
                 val title = c.getString(iTitle) ?: continue
                 val ep = if (iEp >= 0) c.getString(iEp) else null
-                val label = if (!ep.isNullOrBlank()) "$title · $ep" else title
+                val pkg = c.getString(iPkg) ?: ""
+                val appName = try {
+                    val pm = context.packageManager
+                    pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+                } catch (e: Exception) { "" }
+                val base = if (!ep.isNullOrBlank()) "$title · $ep" else title
+                val label = if (appName.isNotBlank()) "$appName — $base" else base
                 out.add(Tile.Program(
                     id = "wn:" + c.getLong(iId),
                     label = label,
                     posterUri = c.getString(iPoster),
                     intentUri = c.getString(iIntent),
-                    packageName = c.getString(iPkg) ?: ""
+                    packageName = pkg
                 ))
             }
         }

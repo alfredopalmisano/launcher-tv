@@ -56,6 +56,7 @@ class TileAdapter(
         private val banner: ImageView = view.findViewById(R.id.banner)
         private val icon: ImageView = view.findViewById(R.id.icon)
         private val label: TextView = view.findViewById(R.id.label)
+        private val badge: ImageView = view.findViewById(R.id.badge)
         private val focusDrawable = view.context.getDrawable(R.drawable.tile_focus)
         private val movingDrawable = view.context.getDrawable(R.drawable.tile_moving)
         private val white = ColorStateList.valueOf(0xFFFFFFFF.toInt())
@@ -81,6 +82,7 @@ class TileAdapter(
 
         fun bind(tile: Tile) {
             label.text = tile.label
+            badge.visibility = View.GONE
             val moving = tile.id == movingId
             card.foreground = if (moving) movingDrawable else if (itemView.hasFocus()) focusDrawable else null
             card.rotation = if (moving) -2f else 0f
@@ -103,6 +105,9 @@ class TileAdapter(
                     banner.visibility = View.VISIBLE
                     banner.setImageDrawable(null)
                     if (tile.posterUri != null) Posters.load(itemView.context, tile.posterUri, banner, card.layoutParams.width)
+                    // Logo de la app de origen en la esquina.
+                    val appIcon = try { itemView.context.packageManager.getApplicationIcon(tile.packageName) } catch (e: Exception) { null }
+                    if (appIcon != null) { badge.setImageDrawable(appIcon); badge.visibility = View.VISIBLE }
                 }
                 is Tile.Input -> showIcon(tile.kind.iconRes)
                 Tile.AllApps -> showIcon(R.drawable.ic_apps)

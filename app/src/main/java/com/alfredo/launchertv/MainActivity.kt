@@ -310,7 +310,6 @@ class MainActivity : Activity() {
         val hadFocus = dock.hasFocus()
         val tiles = ArrayList<Tile>()
         tiles.addAll(favorites.get(apps))
-        tiles.addAll(InputsRepository.loadConnected(this))
         tiles.add(Tile.AllApps)
         dockAdapter.submit(tiles)
         refreshRows()
@@ -400,7 +399,9 @@ class MainActivity : Activity() {
 
     /** Temporizador de apagado (tile Dormir). */
     private fun showSleepMenu() {
-        if (!Sleep.isAdmin(this)) { toast(getString(R.string.sleep_no_admin)) }
+        val admin = Sleep.isAdmin(this)
+        android.util.Log.i(TAG, "Dormir: admin activo=$admin, admins=${Sleep.activeAdmins(this)}")
+        if (!admin) { toast(getString(R.string.sleep_no_admin)) }
         val remaining = Sleep.remainingMinutes(this)
         val options = listOf(15, 30, 45, 60, 90, 120)
         val labels = ArrayList<String>()

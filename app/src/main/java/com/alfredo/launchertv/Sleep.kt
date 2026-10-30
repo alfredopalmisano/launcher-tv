@@ -33,6 +33,11 @@ object Sleep {
         return dpm.isAdminActive(admin(context))
     }
 
+    fun activeAdmins(context: Context): String {
+        val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        return dpm.activeAdmins?.joinToString { it.flattenToShortString() } ?: "ninguno"
+    }
+
     fun sleepNow(context: Context): Boolean {
         clear(context)
         val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
