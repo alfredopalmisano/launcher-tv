@@ -370,9 +370,9 @@ class MainActivity : Activity() {
         val d = resources.displayMetrics.density
         val clockH = clock.textSizePx * 0.92f
         val dockTop = if (dockTopPx > 0f) dockTopPx else screenH * 0.72f
-        val maxTop = dockTop - clockH * 0.82f              // como mucho un 18 % del reloj detrás del dock
+        val maxTop = dockTop - clockH - 16 * d             // el reloj nunca queda detrás de las apps
         val minTop = 24 * d
-        var top = (dockTop - clockH * 0.90f).coerceIn(minTop, maxTop)   // por defecto: apoyado sobre el dock
+        var top = (72 * d).coerceIn(minTop, maxTop)         // por defecto: arriba, en el cielo
         var useFg = false
         if (sky != null) {
             val peakY = sky.topY.toFloat() * screenH / photoH
