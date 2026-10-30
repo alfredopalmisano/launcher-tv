@@ -10,6 +10,7 @@ import android.graphics.ColorMatrixColorFilter
 import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.util.AttributeSet
@@ -43,6 +44,18 @@ class GlassTextView @JvmOverloads constructor(
 
     /** true cuando el cielo detrás del reloj es claro: entonces el cristal se oscurece para que se lea. */
     private var onBright = false
+    private val bounds = Rect()
+
+    /** Distancia desde el borde superior de la vista hasta el borde superior de las cifras. */
+    fun digitTopOffset(): Float {
+        val fm = fill.fontMetrics
+        val y = measuredHeight / 2f - (fm.ascent + fm.descent) / 2f
+        fill.getTextBounds(text.ifEmpty { "88:88" }, 0, text.ifEmpty { "88:88" }.length, bounds)
+        return y + bounds.top
+    }
+
+    /** Modo claro/oscuro decidido fuera (plan precalculado). */
+    fun setBright(bright: Boolean) { onBright = bright; invalidate() }
 
     private var glassBitmap: Bitmap? = null
     private var glassShader: BitmapShader? = null

@@ -29,11 +29,9 @@ class Wallpapers(
         fun views() = listOf(photo, fg)
     }
 
-    /**
-     * Se llama con cada foto nueva: la foto y la línea del horizonte (o null si no hay cielo).
-     * Devuelve true si hay que usar el primer plano (reloj detrás de las montañas).
-     */
-    var onPhotoChanged: ((Bitmap, Skyline.Result?) -> Boolean)? = null
+    /** Se llama con cada foto nueva: la foto y su plan (posición del reloj, etc.), o null si no hay. */
+    var onPhotoChanged: ((Bitmap, Layouts.Entry?) -> Unit)? = null
+    private val layouts = Layouts(context)
 
     private val layers = listOf(Layer(photoA, fgA), Layer(photoB, fgB))
     private var current = 0
@@ -80,27 +78,24 @@ class Wallpapers(
         if (files.isEmpty()) return
         index = (index + 1) % files.size
         val bmp = decode(files[index]) ?: return
-        val sky = try { Skyline.compute(bmp) } catch (e: Throwable) {
-            android.util.Log.e("LauncherTV", "Skyline falló en ${files[index]}", e); null
-        }
-        android.util.Log.i("LauncherTV", "fondo ${files[index]} ${bmp.width}x${bmp.height} sky=${sky != null}")
+        val plan = layouts[files[index]]
+        val fgBitmap = if (plan?.useFg == true) layouts.foreground(files[index], bmp) else null
+        android.util.Log.i("LauncherTV", "fondo ${files[index]} plan=${plan != null} fg=${fgBitmap != null} top=${plan?.digitTop}")
 
         val outgoing = layers[current]
         current = 1 - current
         val incoming = layers[current]
 
-        val useFg = sky != null && (onPhotoChanged?.invoke(bmp, sky) ?: true)
         incoming.photo.setImageBitmap(bmp)
-        incoming.fg.setImageBitmap(if (useFg) sky!!.foreground else null)
-        if (!useFg) sky?.foreground?.recycle()
+        incoming.fg.setImageBitmap(fgBitmap)
         for (v in incoming.views()) { v.scaleX = 1f; v.scaleY = 1f; v.alpha = 0f }
 
         fade(incoming.photo, 1f, null)
-        if (useFg) fade(incoming.fg, 1f, null)
+        if (fgBitmap != null) fade(incoming.fg, 1f, null)
         fade(outgoing.photo, 0f) { outgoing.photo.setImageDrawable(null) }
         fade(outgoing.fg, 0f) { outgoing.fg.setImageDrawable(null) }
         kenBurns(incoming)
-        if (sky == null) onPhotoChanged?.invoke(bmp, null)
+        onPhotoChanged?.invoke(bmp, plan)
         val author = credits[files[index]]
         credit.text = if (author != null) context.getString(R.string.credit, author) else ""
     }

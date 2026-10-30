@@ -32,18 +32,17 @@ jobs:
       - name: Descargar fondos de pantalla
         run: bash scripts/descargar_fondos.sh
 
-      - name: Hoja de contactos de los fondos (para revisarlos desde el chat)
+      - name: Analizar fondos (máscaras de montaña, posición del reloj, previsualizaciones)
         run: |
-          sudo apt-get install -y -q imagemagick >/dev/null 2>&1 || true
-          cd app/src/main/assets/wallpapers
-          montage -label '%f' *.jpg -tile 4x -geometry 480x270+6+6 -background '#111' -fill white -pointsize 18 ../../../../../wallpapers/preview.jpg || true
-          cd "$GITHUB_WORKSPACE"
+          pip install -q pillow numpy
+          python3 scripts/analizar_fondos.py app/src/main/assets/wallpapers app/src/main/assets/wallpapers wallpapers/preview
           mkdir -p wallpapers/cache
           cp app/src/main/assets/wallpapers/*.jpg app/src/main/assets/wallpapers/creditos.txt wallpapers/cache/ 2>/dev/null || true
           cp app/src/main/assets/fonts/*.ttf wallpapers/cache/ 2>/dev/null || true
           git config user.name "github-actions"; git config user.email "actions@github.com"
-          git add wallpapers/preview.jpg wallpapers/cache
-          git commit -q -m "Fondos descargados y hoja de contactos [skip ci]" || true
+          git add wallpapers/preview wallpapers/cache
+          git rm -q --cached wallpapers/preview.jpg 2>/dev/null || true
+          git commit -q -m "Fondos, máscaras y previsualizaciones [skip ci]" || true
           git push -q origin HEAD:main || true
 
       - name: Compilar

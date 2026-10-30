@@ -100,7 +100,7 @@ class MainActivity : Activity() {
 
         val dm = resources.displayMetrics
         clock.typeface = Fonts.clock(this)
-        clock.textSizePx = 215f * dm.scaledDensity
+        clock.textSizePx = 180f * dm.scaledDensity
         clock.glassAmount = 0.62f
         findViewById<TextView>(R.id.credit).typeface = Fonts.light(this)
         findViewById<TextView>(R.id.overlayTitle).typeface = Fonts.light(this)
@@ -110,14 +110,14 @@ class MainActivity : Activity() {
             findViewById(R.id.wallB), findViewById(R.id.fgB),
             findViewById(R.id.credit))
         val overlayBg = findViewById<ImageView>(R.id.overlayBg)
-        wallpapers.onPhotoChanged = { photo, sky ->
+        wallpapers.onPhotoChanged = { photo, plan ->
             clock.setBackdrop(photo, dm.widthPixels, dm.heightPixels)
-            val useFg = placeClock(clockBox, sky, dm.widthPixels, dm.heightPixels, photo.width, photo.height)
+            if (plan != null) clock.setBright(plan.bright)
+            placeClock(clockBox, plan, dm.heightPixels, photo.height)
             // Fondo de la pantalla de apps: la misma foto muy difuminada.
             val tiny = Bitmap.createScaledBitmap(photo, 32, 18, true)
             overlayBg.setImageBitmap(Bitmap.createScaledBitmap(tiny, 320, 180, true))
             tiny.recycle()
-            useFg
         }
 
         // La primera fila queda abajo; las demás, fuera de pantalla hasta que bajes.
@@ -375,34 +375,19 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Coloca el reloj según el horizonte de la foto: las cifras quedan un poco por detrás
-     * de las cumbres (como el iPhone) y apoyadas sobre el dock. Devuelve si merece la pena
-     * usar el primer plano (si taparía demasiado el reloj, no).
+     * Coloca el reloj donde dice el plan precalculado de la foto (borde superior de las cifras,
+     * en píxeles de pantalla). Sin plan: arriba, a 48 dp. Nunca en la zona de las apps.
      */
-    private fun placeClock(box: View, sky: Skyline.Result?, screenW: Int, screenH: Int, photoW: Int, photoH: Int): Boolean {
+    private fun placeClock(box: View, plan: Layouts.Entry?, screenH: Int, photoH: Int) {
+        if (clock.height == 0) { box.post { placeClock(box, plan, screenH, photoH) }; return }
         val d = resources.displayMetrics.density
-        val clockH = clock.textSizePx * 0.92f
-        val dockTop = if (dockTopPx > 0f) dockTopPx else screenH * 0.72f
-        val maxTop = dockTop - clockH - 16 * d             // el reloj nunca queda detrás de las apps
-        val minTop = 24 * d
-        var top = (72 * d).coerceIn(minTop, maxTop)         // por defecto: arriba, en el cielo
-        var useFg = false
-        if (sky != null) {
-            val peakY = sky.topY.toFloat() * screenH / photoH
-            // El reloj va en el cielo, por encima de las cumbres; solo la parte baja de las cifras
-            // (un 20 %) queda detrás de los picos más altos.
-            val wanted = (peakY - clockH * 0.80f).coerceIn(minTop, maxTop)
-            val w = clock.measuredWidth.toFloat().takeIf { it > 0f } ?: (screenW * 0.5f)
-            val left = (screenW - w) / 2f
-            val cov = sky.coverage(left, wanted, left + w, wanted + clockH, screenW, screenH, photoW, photoH)
-            if (cov in 0.03f..0.45f) { top = wanted; useFg = true }
-            else if (cov < 0.03f) { top = wanted }   // cielo libre: el reloj igualmente arriba
-            android.util.Log.i(TAG, "sky: peakY=%.0f mean=%d frac=%.2f cov=%.2f wanted=%.0f -> top=%.0f useFg=%b".format(peakY, sky.meanY, sky.skyFraction, cov, wanted, top, useFg))
-        } else {
-            android.util.Log.i(TAG, "sky: null -> top=%.0f (dockTop=%.0f clockH=%.0f)".format(top, dockTop, clockH))
-        }
-        box.animate().translationY(top - 72 * d).setDuration(1200).start()
-        return useFg
+        val digitH = clock.textSizePx * 0.88f
+        val dockTop = if (dockTopPx > 0f) dockTopPx else screenH * 0.78f
+        val maxDigitTop = dockTop - digitH - 24 * d
+        val digitTop = (plan?.digitTop?.toFloat()?.times(screenH.toFloat() / photoH) ?: (48 * d)).coerceIn(24 * d, maxDigitTop)
+        val viewTop = digitTop - clock.digitTopOffset()
+        android.util.Log.i(TAG, "reloj: digitTop=%.0f viewTop=%.0f fg=%b".format(digitTop, viewTop, plan?.useFg == true))
+        box.animate().translationY(viewTop - 72 * d).setDuration(1200).start()
     }
 
     /** Temporizador de apagado (tile Dormir). */
