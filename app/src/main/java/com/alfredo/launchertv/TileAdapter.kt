@@ -20,6 +20,10 @@ class TileAdapter(
 
     private val items = ArrayList<Tile>()
 
+    /** Tarjeta que se está recolocando (modo mover). */
+    var movingId: String? = null
+        set(value) { field = value; notifyDataSetChanged() }
+
     fun submit(list: List<Tile>) {
         items.clear()
         items.addAll(list)
@@ -51,6 +55,7 @@ class TileAdapter(
         private val icon: ImageView = view.findViewById(R.id.icon)
         private val label: TextView = view.findViewById(R.id.label)
         private val focusDrawable = view.context.getDrawable(R.drawable.tile_focus)
+        private val movingDrawable = view.context.getDrawable(R.drawable.tile_moving)
         private val white = ColorStateList.valueOf(0xFFFFFFFF.toInt())
 
         init {
@@ -63,12 +68,20 @@ class TileAdapter(
                 card.animate().scaleX(scale).scaleY(scale).translationZ(if (focused) 16f else 0f)
                     .setDuration(180).setInterpolator(android.view.animation.DecelerateInterpolator()).start()
                 label.animate().alpha(if (focused) 1f else 0f).translationY(if (focused) 0f else -6f).setDuration(180).start()
-                card.foreground = if (focused) focusDrawable else null
+                val tile = items.getOrNull(bindingAdapterPosition)
+                card.foreground = when {
+                    tile != null && tile.id == movingId -> movingDrawable
+                    focused -> focusDrawable
+                    else -> null
+                }
             }
         }
 
         fun bind(tile: Tile) {
             label.text = tile.label
+            val moving = tile.id == movingId
+            card.foreground = if (moving) movingDrawable else if (itemView.hasFocus()) focusDrawable else null
+            card.rotation = if (moving) -2f else 0f
             when (tile) {
                 is Tile.App -> {
                     if (tile.banner != null) {

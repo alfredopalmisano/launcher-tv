@@ -14,6 +14,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import android.view.KeyEvent
 import android.graphics.Bitmap
 import android.widget.ImageView
 import android.widget.TextView
@@ -41,6 +42,9 @@ class MainActivity : Activity() {
     private lateinit var dim: View
     private lateinit var clockBox: View
     private var dockTopPx = 0f
+    private var ambient = false
+    private var movingPkg: String? = null
+    private val idleToAmbient = Runnable { if (!ambient && overlay.visibility != View.VISIBLE) setAmbient(true) }
     private lateinit var overlay: View
     private lateinit var grid: RecyclerView
     private lateinit var wallpapers: Wallpapers
@@ -144,6 +148,8 @@ class MainActivity : Activity() {
     override fun onStart() {
         super.onStart()
         handler.post(tick)
+        resetIdle()
+        if (ambient) setAmbient(false)
         wallpapers.start()
         registerReceiver(packageReceiver, IntentFilter().apply {
             addAction(Intent.ACTION_PACKAGE_ADDED)
@@ -158,6 +164,7 @@ class MainActivity : Activity() {
     override fun onStop() {
         super.onStop()
         handler.removeCallbacks(tick)
+        handler.removeCallbacks(idleToAmbient)
         wallpapers.stop()
         try { unregisterReceiver(packageReceiver) } catch (e: Exception) { }
         try { InputsRepository.manager(this)?.unregisterCallback(inputCallback) } catch (e: Exception) { }
@@ -177,6 +184,63 @@ class MainActivity : Activity() {
     override fun onBackPressed() {
         if (overlay.visibility == View.VISIBLE) hideAllApps()
         // En la pantalla principal "atrás" no hace nada: somos el inicio.
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        resetIdle()
+        if (event.action != KeyEvent.ACTION_DOWN) return super.dispatchKeyEvent(event)
+        val code = event.keyCode
+
+        // Modo ambiente (solo fondo y reloj): cualquier tecla vuelve a mostrar las apps.
+        if (ambient) {
+            if (code != KeyEvent.KEYCODE_BACK && code != KeyEvent.KEYCODE_HOME) { setAmbient(false); return true }
+        }
+
+        // Modo mover: ← → recolocan la app; OK suelta; Atrás cancela.
+        val pkg = movingPkg
+        if (pkg != null) {
+            when (code) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> { if (favorites.move(pkg, -1)) refreshDock(focus = "app:$pkg"); return true }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> { if (favorites.move(pkg, +1)) refreshDock(focus = "app:$pkg"); return true }
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_BACK -> { stopMoving(); return true }
+                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> return true
+            }
+        }
+
+        // Arriba desde la primera fila: esconder las apps y dejar solo el fondo con el reloj.
+        if (code == KeyEvent.KEYCODE_DPAD_UP && overlay.visibility != View.VISIBLE && dock.hasFocus() && rowsScroll.scrollY == 0) {
+            setAmbient(true)
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    private fun resetIdle() {
+        handler.removeCallbacks(idleToAmbient)
+        handler.postDelayed(idleToAmbient, IDLE_MS)
+    }
+
+    private fun setAmbient(on: Boolean) {
+        ambient = on
+        val d = resources.displayMetrics.density
+        rowsScroll.animate().alpha(if (on) 0f else 1f).translationY(if (on) 40 * d else 0f).setDuration(350).withEndAction {
+            if (!on) dock.post { dock.getChildAt(0)?.requestFocus() }
+        }.start()
+        if (on) rowsScroll.scrollTo(0, 0)
+    }
+
+    private fun startMoving(tile: Tile.App) {
+        movingPkg = tile.packageName
+        dockAdapter.movingId = tile.id
+        toast(getString(R.string.move_hint))
+        refreshDock(focus = tile.id)
+    }
+
+    private fun stopMoving() {
+        val id = movingPkg?.let { "app:$it" }
+        movingPkg = null
+        dockAdapter.movingId = null
+        if (id != null) refreshDock(focus = id)
     }
 
     private fun hideSystemUi() {
@@ -308,11 +372,14 @@ class MainActivity : Activity() {
         var useFg = false
         if (sky != null) {
             val peakY = sky.topY.toFloat() * screenH / photoH
-            val wanted = (peakY - clockH * 0.55f).coerceIn(minTop, maxTop)
+            // El reloj va en el cielo, por encima de las cumbres; solo la parte baja de las cifras
+            // (un 20 %) queda detrás de los picos más altos.
+            val wanted = (peakY - clockH * 0.80f).coerceIn(minTop, maxTop)
             val w = clock.measuredWidth.toFloat().takeIf { it > 0f } ?: (screenW * 0.5f)
             val left = (screenW - w) / 2f
             val cov = sky.coverage(left, wanted, left + w, wanted + clockH, screenW, screenH, photoW, photoH)
-            if (cov in 0.08f..0.6f) { top = wanted; useFg = true }
+            if (cov in 0.03f..0.45f) { top = wanted; useFg = true }
+            else if (cov < 0.03f) { top = wanted }   // cielo libre: el reloj igualmente arriba
         }
         box.animate().translationY(top - 72 * d).setDuration(1200).start()
         return useFg
@@ -376,8 +443,7 @@ class MainActivity : Activity() {
                 toast(getString(R.string.removed_from_dock, tile.label)); refreshDock()
             }
             if (fromDock) {
-                item(R.string.menu_move_left) { if (favorites.move(tile.packageName, -1)) refreshDock(focus = tile.id) }
-                item(R.string.menu_move_right) { if (favorites.move(tile.packageName, +1)) refreshDock(focus = tile.id) }
+                item(R.string.menu_move) { startMoving(tile) }
             }
         } else {
             item(R.string.menu_add_dock) {
@@ -420,6 +486,7 @@ class MainActivity : Activity() {
         private const val DOCK_TILE_DP = 176
         private const val GRID_TILE_DP = 144
         private const val ROW_TILE_DP = 150
+        private const val IDLE_MS = 5 * 60_000L
         private val AIRPLAY_RECEIVERS = listOf(
             "com.ionitech.airscreen",          // AirScreen
             "com.sand.airdroidcast.tv",        // AirDroid Cast

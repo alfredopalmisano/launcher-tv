@@ -12,8 +12,8 @@
     <string name="store">Tienda</string>
     <string name="menu_add_dock">Añadir al dock</string>
     <string name="menu_remove_dock">Quitar del dock</string>
-    <string name="menu_move_left">Mover a la izquierda</string>
-    <string name="menu_move_right">Mover a la derecha</string>
+    <string name="menu_move">Mover</string>
+    <string name="move_hint">Mueve con ← →  ·  OK para soltar  ·  Atrás para cancelar</string>
     <string name="menu_uninstall">Desinstalar</string>
     <string name="menu_app_info">Información de la app</string>
     <string name="menu_cancel">Cancelar</string>
