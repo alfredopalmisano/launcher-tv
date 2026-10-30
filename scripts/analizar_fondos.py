@@ -261,7 +261,8 @@ def main():
         p["skyFraction"] = round(sky_frac, 3)
         layout[name] = p
         if p["useFg"]:
-            mask.save(os.path.join(out_assets, name.replace(".jpg", ".mask.png")))
+            # PNG con canal ALFA (la tele recorta con el alfa, no con el gris): opaco = montaña, transparente = cielo
+            Image.merge("LA", [Image.new("L", mask.size, 255), mask]).save(os.path.join(out_assets, name.replace(".jpg", ".mask.png")))
         preview(img, mask, p, font, os.path.join(out_prev, name), bright)
         p["method"] = METHOD["last"]
         print(f"{name}: [{METHOD['last']}] cielo={sky_frac:.2f} pico={p['peakY']} top={p['digitTop']} tapa={p['coverage']:.0%} fg={p['useFg']} claro={bright}")

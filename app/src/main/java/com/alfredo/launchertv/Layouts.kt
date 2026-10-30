@@ -35,7 +35,20 @@ class Layouts(private val context: Context) {
     /** Primer plano (montaña) = foto recortada con la máscara precalculada; null si no hay. */
     fun foreground(file: String, photo: Bitmap): Bitmap? {
         val maskName = "wallpapers/" + file.replace(".jpg", ".mask.png")
-        val mask = try { context.assets.open(maskName).use { BitmapFactory.decodeStream(it) } } catch (e: Exception) { null } ?: return null
+        var mask = try { context.assets.open(maskName).use { BitmapFactory.decodeStream(it) } } catch (e: Exception) { null } ?: return null
+        if (!mask.hasAlpha()) {
+            // Máscara en gris sin alfa: pasar el gris al canal alfa.
+            val withAlpha = Bitmap.createBitmap(mask.width, mask.height, Bitmap.Config.ARGB_8888)
+            val cm = android.graphics.ColorMatrix(floatArrayOf(
+                0f, 0f, 0f, 0f, 255f,
+                0f, 0f, 0f, 0f, 255f,
+                0f, 0f, 0f, 0f, 255f,
+                0.299f, 0.587f, 0.114f, 0f, 0f))
+            val pm = Paint().apply { colorFilter = android.graphics.ColorMatrixColorFilter(cm) }
+            Canvas(withAlpha).drawBitmap(mask, 0f, 0f, pm)
+            mask.recycle()
+            mask = withAlpha
+        }
         return try {
             val fg = Bitmap.createBitmap(photo.width, photo.height, Bitmap.Config.ARGB_8888)
             val c = Canvas(fg)
