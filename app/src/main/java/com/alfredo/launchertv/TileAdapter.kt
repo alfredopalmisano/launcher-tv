@@ -14,6 +14,7 @@ import androidx.recyclerview.widget.RecyclerView
  */
 class TileAdapter(
     private val tileWidthDp: Int,
+    private val showLabels: Boolean,
     private val onClick: (Tile) -> Unit,
     private val onLongClick: (Tile) -> Boolean
 ) : RecyclerView.Adapter<TileAdapter.Holder>() {
@@ -42,6 +43,7 @@ class TileAdapter(
         card.layoutParams = card.layoutParams.apply { width = w; height = w * 9 / 16 }
         val label = v.findViewById<TextView>(R.id.label)
         label.layoutParams = label.layoutParams.apply { width = w }
+        if (!showLabels) label.visibility = View.GONE
         return Holder(v)
     }
 
@@ -67,7 +69,7 @@ class TileAdapter(
                 val scale = if (focused) 1.10f else 1f
                 card.animate().scaleX(scale).scaleY(scale).translationZ(if (focused) 16f else 0f)
                     .setDuration(180).setInterpolator(android.view.animation.DecelerateInterpolator()).start()
-                label.animate().alpha(if (focused) 1f else 0f).translationY(if (focused) 0f else -6f).setDuration(180).start()
+                if (showLabels) label.animate().alpha(if (focused) 1f else 0f).translationY(if (focused) 0f else -6f).setDuration(180).start()
                 val tile = items.getOrNull(bindingAdapterPosition)
                 card.foreground = when {
                     tile != null && tile.id == movingId -> movingDrawable

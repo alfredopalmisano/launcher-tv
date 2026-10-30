@@ -50,10 +50,10 @@ class MainActivity : Activity() {
     private lateinit var wallpapers: Wallpapers
     private lateinit var favorites: Favorites
 
-    private val dockAdapter = TileAdapter(DOCK_TILE_DP, ::open) { showAppMenu(it, fromDock = true) }
-    private val recentsAdapter = TileAdapter(ROW_TILE_DP, ::open) { showAppMenu(it, fromDock = false) }
-    private val systemAdapter = TileAdapter(ROW_TILE_DP, ::open) { false }
-    private val gridAdapter = TileAdapter(GRID_TILE_DP, ::open) { showAppMenu(it, fromDock = false) }
+    private val dockAdapter = TileAdapter(DOCK_TILE_DP, false, ::open) { showAppMenu(it, fromDock = true) }
+    private val recentsAdapter = TileAdapter(ROW_TILE_DP, true, ::open) { showAppMenu(it, fromDock = false) }
+    private val systemAdapter = TileAdapter(ROW_TILE_DP, true, ::open) { false }
+    private val gridAdapter = TileAdapter(GRID_TILE_DP, true, ::open) { showAppMenu(it, fromDock = false) }
 
     private var apps: List<Tile.App> = emptyList()
     private val handler = Handler(Looper.getMainLooper())
@@ -490,7 +490,7 @@ class MainActivity : Activity() {
     }
 
     companion object {
-        private const val DOCK_TILE_DP = 176
+        private const val DOCK_TILE_DP = 196
         private const val GRID_TILE_DP = 144
         private const val ROW_TILE_DP = 150
         private const val IDLE_MS = 5 * 60_000L
