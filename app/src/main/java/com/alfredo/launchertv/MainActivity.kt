@@ -156,7 +156,9 @@ class MainActivity : Activity() {
         val tiles = ArrayList<Tile>()
         tiles.addAll(favorites.get(apps))
         tiles.addAll(InputsRepository.loadConnected(this))
+        tiles.add(Tile.AirPlay)
         tiles.add(Tile.Store)
+        tiles.add(Tile.SettingsTile)
         tiles.add(Tile.AllApps)
         dockAdapter.submit(tiles)
         if (focus != null) {
@@ -181,6 +183,10 @@ class MainActivity : Activity() {
                 }
             }
             Tile.AllApps -> showAllApps()
+            Tile.SettingsTile -> {
+                if (!tryStart(Intent(Settings.ACTION_SETTINGS))) toast(getString(R.string.cannot_open, "Ajustes"))
+            }
+            Tile.AirPlay -> openAirPlay()
             Tile.Store -> {
                 val store = packageManager.getLeanbackLaunchIntentForPackage("com.android.vending")
                     ?: packageManager.getLaunchIntentForPackage("com.android.vending")
@@ -194,6 +200,23 @@ class MainActivity : Activity() {
         true
     } catch (e: Exception) {
         false
+    }
+
+    /**
+     * AirPlay: abre el receptor instalado (AirScreen); si no está, lleva a instalarlo.
+     * (Fase 2: receptor AirPlay propio dentro del launcher.)
+     */
+    private fun openAirPlay() {
+        for (pkg in AIRPLAY_RECEIVERS) {
+            val i = packageManager.getLeanbackLaunchIntentForPackage(pkg) ?: packageManager.getLaunchIntentForPackage(pkg)
+            if (i != null && tryStart(i)) return
+        }
+        toast(getString(R.string.airplay_install))
+        val market = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + AIRPLAY_RECEIVERS[0]))
+        if (!tryStart(market)) {
+            val store = packageManager.getLeanbackLaunchIntentForPackage("com.android.vending")
+            if (store != null) tryStart(store)
+        }
     }
 
     /** Menú al mantener pulsado OK sobre una app. */
@@ -257,6 +280,11 @@ class MainActivity : Activity() {
     companion object {
         private const val DOCK_TILE_DP = 176
         private const val GRID_TILE_DP = 144
+        private val AIRPLAY_RECEIVERS = listOf(
+            "com.ionitech.airscreen",          // AirScreen
+            "com.sand.airdroidcast.tv",        // AirDroid Cast
+            "com.airbeamtv.receiver"           // AirBeamTV
+        )
     }
 
     private fun toast(text: String) {

@@ -86,6 +86,8 @@ class TileAdapter(
                 is Tile.Input -> showIcon(tile.kind.iconRes)
                 Tile.AllApps -> showIcon(R.drawable.ic_apps)
                 Tile.Store -> showIcon(R.drawable.ic_store)
+                Tile.SettingsTile -> showIcon(R.drawable.ic_settings)
+                Tile.AirPlay -> showIcon(R.drawable.ic_airplay)
             }
         }
 
