@@ -3,6 +3,7 @@ package com.alfredo.launchertv
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -13,22 +14,32 @@ import android.view.animation.LinearInterpolator
 import android.widget.ImageView
 import android.widget.TextView
 
-/** Fondos de naturaleza que rotan con fundido y un zoom muy lento (efecto Ken Burns). */
+/**
+ * Fondos que rotan con fundido y zoom muy lento (Ken Burns).
+ * Cada fondo tiene dos capas: la foto (debajo del reloj) y el primer plano recortado
+ * (montañas, encima del reloj) para el efecto de profundidad.
+ */
 class Wallpapers(
     private val context: Context,
-    private val viewA: ImageView,
-    private val viewB: ImageView,
+    photoA: ImageView, fgA: ImageView,
+    photoB: ImageView, fgB: ImageView,
     private val credit: TextView
 ) {
-    /** Se llama con cada foto nueva (para el reloj de cristal). */
-    var onPhotoChanged: ((Bitmap) -> Unit)? = null
+    class Layer(val photo: ImageView, val fg: ImageView) {
+        fun views() = listOf(photo, fg)
+    }
 
+    /** Se llama con cada foto nueva: la foto, y la línea del horizonte (o null si no hay cielo). */
+    var onPhotoChanged: ((Bitmap, Skyline.Result?) -> Unit)? = null
+
+    private val layers = listOf(Layer(photoA, fgA), Layer(photoB, fgB))
+    private var current = 0
     private val handler = Handler(Looper.getMainLooper())
     private val files: List<String>
     private val credits: Map<String, String>
     private var index = -1
-    private var showingA = true
     private var running = false
+    private var zoom: ValueAnimator? = null
 
     private val next = object : Runnable {
         override fun run() {
@@ -52,59 +63,63 @@ class Wallpapers(
     fun start() {
         if (running) return
         running = true
-        if (index < 0) advance() else kenBurns(if (showingA) viewA else viewB)
+        if (index < 0) advance() else kenBurns(layers[current])
         handler.postDelayed(next, INTERVAL_MS)
     }
 
     fun stop() {
         running = false
         handler.removeCallbacks(next)
-        viewA.animate().cancel()
-        viewB.animate().cancel()
+        zoom?.cancel()
     }
 
     private fun advance() {
         if (files.isEmpty()) return
         index = (index + 1) % files.size
         val bmp = decode(files[index]) ?: return
+        val sky = try { Skyline.compute(bmp) } catch (e: Throwable) { null }
 
-        val incoming = if (showingA) viewB else viewA
-        val outgoing = if (showingA) viewA else viewB
-        showingA = !showingA
+        val outgoing = layers[current]
+        current = 1 - current
+        val incoming = layers[current]
 
-        incoming.animate().cancel()
-        outgoing.animate().cancel()
-        incoming.setImageBitmap(bmp)
-        incoming.scaleX = 1f
-        incoming.scaleY = 1f
-        incoming.alpha = 0f
+        incoming.photo.setImageBitmap(bmp)
+        incoming.fg.setImageBitmap(sky?.foreground)
+        for (v in incoming.views()) { v.scaleX = 1f; v.scaleY = 1f; v.alpha = 0f }
 
-        // Fundido con ObjectAnimator (independiente del zoom, que usa animate()).
-        ObjectAnimator.ofFloat(incoming, View.ALPHA, 0f, 1f).apply {
-            duration = FADE_MS
-            start()
-        }
-        ObjectAnimator.ofFloat(outgoing, View.ALPHA, outgoing.alpha, 0f).apply {
-            duration = FADE_MS
-            addListener(object : AnimatorListenerAdapter() {
-                override fun onAnimationEnd(animation: Animator) {
-                    if (outgoing !== (if (showingA) viewA else viewB)) outgoing.setImageDrawable(null)
-                }
-            })
-            start()
-        }
+        fade(incoming.photo, 1f, null)
+        fade(incoming.fg, 1f, null)
+        fade(outgoing.photo, 0f) { outgoing.photo.setImageDrawable(null) }
+        fade(outgoing.fg, 0f) { outgoing.fg.setImageDrawable(null) }
         kenBurns(incoming)
-        onPhotoChanged?.invoke(bmp)
 
+        onPhotoChanged?.invoke(bmp, sky)
         val author = credits[files[index]]
         credit.text = if (author != null) context.getString(R.string.credit, author) else ""
     }
 
-    private fun kenBurns(view: ImageView) {
-        view.animate().scaleX(1.07f).scaleY(1.07f)
-            .setDuration(INTERVAL_MS + FADE_MS)
-            .setInterpolator(LinearInterpolator())
-            .start()
+    private fun fade(view: View, to: Float, end: (() -> Unit)?) {
+        ObjectAnimator.ofFloat(view, View.ALPHA, view.alpha, to).apply {
+            duration = FADE_MS
+            if (end != null) addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) { end() }
+            })
+            start()
+        }
+    }
+
+    /** Zoom lento aplicado a la vez a la foto y al primer plano, para que sigan alineados. */
+    private fun kenBurns(layer: Layer) {
+        zoom?.cancel()
+        zoom = ValueAnimator.ofFloat(1f, 1.07f).apply {
+            duration = INTERVAL_MS + FADE_MS
+            interpolator = LinearInterpolator()
+            addUpdateListener { a ->
+                val s = a.animatedValue as Float
+                for (v in layer.views()) { v.scaleX = s; v.scaleY = s }
+            }
+            start()
+        }
     }
 
     private fun decode(name: String): Bitmap? = try {

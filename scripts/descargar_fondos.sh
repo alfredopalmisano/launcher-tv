@@ -34,3 +34,12 @@ else
   echo "✗ no se pudo descargar Nunito; se usará la fuente del sistema"
   rm -f "$FONTS/Nunito.ttf"
 fi
+
+# Tipografía Antonio (OFL): condensada y alta, para el reloj.
+if curl -fsSL --retry 3 -o "$FONTS/Antonio.ttf" "https://raw.githubusercontent.com/google/fonts/main/ofl/antonio/Antonio%5Bwght%5D.ttf"; then
+  curl -fsSL --retry 3 -o "$FONTS/LICENSE-Antonio.txt" "https://raw.githubusercontent.com/google/fonts/main/ofl/antonio/OFL.txt" || true
+  echo "✓ fuente Antonio"
+else
+  echo "✗ no se pudo descargar Antonio"
+  rm -f "$FONTS/Antonio.ttf"
+fi

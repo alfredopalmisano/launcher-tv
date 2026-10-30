@@ -25,6 +25,11 @@ object InputsRepository {
             val label = try { info.loadLabel(context)?.toString() } catch (e: Exception) { null }
             val name = listOf(custom, label).firstOrNull { !it.isNullOrBlank() }?.trim()
                 ?: context.getString(R.string.hdmi_generic, out.size + 1)
+            val generic = name.matches(Regex("(?i)hdmi\\s*\\d*"))
+
+            // Las entradas vacías aparecen como "en espera" con nombre genérico: no se muestran.
+            // Un aparato real conectado pero apagado conserva su nombre (p. ej. "Fire TV Stick") y sí se muestra.
+            if (state != TvInputManager.INPUT_STATE_CONNECTED && generic) continue
             out.add(Tile.Input(info.id, name, DeviceKind.detect(name)))
         }
         return out

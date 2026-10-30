@@ -9,18 +9,25 @@ import android.graphics.Typeface
  */
 object Fonts {
     private const val NUNITO = "fonts/Nunito.ttf"
-    private val cache = HashMap<Int, Typeface>()
+    private const val ANTONIO = "fonts/Antonio.ttf"   // condensada y alta, como el reloj de bloqueo del iPhone
+    private val cache = HashMap<String, Typeface>()
 
-    fun clock(context: Context): Typeface = weight(context, 230) ?: Typeface.create("sans-serif-thin", Typeface.NORMAL)
-    fun light(context: Context): Typeface = weight(context, 320) ?: Typeface.create("sans-serif-light", Typeface.NORMAL)
-    fun medium(context: Context): Typeface = weight(context, 560) ?: Typeface.create("sans-serif-medium", Typeface.NORMAL)
+    fun clock(context: Context): Typeface = variable(context, ANTONIO, 200)
+        ?: variable(context, NUNITO, 230)
+        ?: Typeface.create("sans-serif-condensed-light", Typeface.NORMAL)
+    fun light(context: Context): Typeface = variable(context, NUNITO, 320) ?: Typeface.create("sans-serif-light", Typeface.NORMAL)
+    fun medium(context: Context): Typeface = variable(context, NUNITO, 560) ?: Typeface.create("sans-serif-medium", Typeface.NORMAL)
 
-    private fun weight(context: Context, wght: Int): Typeface? = cache[wght] ?: try {
-        Typeface.Builder(context.assets, NUNITO)
-            .setFontVariationSettings("'wght' $wght")
-            .build()
-            ?.also { cache[wght] = it }
-    } catch (e: Exception) {
-        null
+    private fun variable(context: Context, path: String, wght: Int): Typeface? {
+        val key = "$path@$wght"
+        cache[key]?.let { return it }
+        return try {
+            Typeface.Builder(context.assets, path)
+                .setFontVariationSettings("'wght' $wght")
+                .build()
+                ?.also { cache[key] = it }
+        } catch (e: Exception) {
+            null
+        }
     }
 }

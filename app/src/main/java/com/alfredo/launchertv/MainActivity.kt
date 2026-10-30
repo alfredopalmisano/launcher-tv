@@ -74,15 +74,20 @@ class MainActivity : Activity() {
 
         val dm = resources.displayMetrics
         clock.typeface = Fonts.clock(this)
-        clock.textSizePx = 190f * dm.scaledDensity
+        clock.textSizePx = 250f * dm.scaledDensity
         clock.glassAmount = 0.62f
         findViewById<TextView>(R.id.credit).typeface = Fonts.light(this)
         findViewById<TextView>(R.id.overlayTitle).typeface = Fonts.light(this)
 
-        wallpapers = Wallpapers(this, findViewById(R.id.wallA), findViewById(R.id.wallB), findViewById(R.id.credit))
+        wallpapers = Wallpapers(this,
+            findViewById(R.id.wallA), findViewById(R.id.fgA),
+            findViewById(R.id.wallB), findViewById(R.id.fgB),
+            findViewById(R.id.credit))
         val overlayBg = findViewById<ImageView>(R.id.overlayBg)
-        wallpapers.onPhotoChanged = { photo ->
+        val clockBox = findViewById<View>(R.id.clockBox)
+        wallpapers.onPhotoChanged = { photo, sky ->
             clock.setBackdrop(photo, dm.widthPixels, dm.heightPixels)
+            placeClock(clockBox, sky, dm.heightPixels, photo.height)
             // Fondo de la pantalla de apps: la misma foto muy difuminada.
             val tiny = Bitmap.createScaledBitmap(photo, 32, 18, true)
             overlayBg.setImageBitmap(Bitmap.createScaledBitmap(tiny, 320, 180, true))
@@ -204,6 +209,22 @@ class MainActivity : Activity() {
         true
     } catch (e: Exception) {
         false
+    }
+
+    /**
+     * Coloca el reloj según el horizonte de la foto: las cifras quedan un poco por detrás
+     * de las cumbres (como el iPhone). Sin cielo claro, posición fija arriba.
+     */
+    private fun placeClock(box: View, sky: Skyline.Result?, screenH: Int, photoH: Int) {
+        val d = resources.displayMetrics.density
+        val clockH = clock.textSizePx * 0.95f
+        var top = 72 * d
+        if (sky != null) {
+            val peakY = sky.topY.toFloat() * screenH / photoH      // fila de la cumbre más alta en pantalla
+            val wanted = peakY - clockH * 0.62f                      // ~38 % de las cifras tapadas por las cumbres
+            top = wanted.coerceIn(28 * d, screenH * 0.42f)
+        }
+        box.animate().translationY(top - 72 * d).setDuration(1200).start()
     }
 
     /** Temporizador de apagado (tile Dormir). */

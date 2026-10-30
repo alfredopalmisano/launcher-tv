@@ -19,24 +19,41 @@
         android:alpha="0"
         android:contentDescription="@null" />
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@drawable/scrim" />
-
     <LinearLayout
+        android:id="@+id/clockBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:gravity="center_horizontal"
         android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="96dp">
+        android:layout_marginTop="72dp">
 
         <com.alfredo.launchertv.GlassTextView
             android:id="@+id/clock"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content" />
     </LinearLayout>
+
+    <ImageView
+        android:id="@+id/fgA"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:alpha="0"
+        android:contentDescription="@null" />
+
+    <ImageView
+        android:id="@+id/fgB"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:alpha="0"
+        android:contentDescription="@null" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/scrim" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/dock"
