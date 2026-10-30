@@ -11,6 +11,26 @@ Carpeta de trabajo en el Mac: `~/Desktop/LauncherTV`. Código: https://github.co
 
 ---
 
+## 0. Para la mañana del 31-oct (resumen de la noche)
+
+Lo que quedó hecho mientras dormías, y cómo probarlo, en orden:
+
+1. **Actualizar la tele a la 0.28** (trae Dormir por ADB interno, Reiniciar, tile Mando, AirPlay):
+   `bash ~/Desktop/LauncherTV/paso3_instalar_launcher.sh`
+2. **Dormir**: en Conexiones y sistema → Dormir → "Ahora". La primera vez la tele mostrará
+   **"¿Permitir depuración USB?" → marca "Permitir siempre" y acepta.** Vuelve a Dormir → Ahora: la tele se va a reposo.
+   (Antes fallaba porque esta tele no admite device admin; ahora el launcher le da la orden por ADB a sí misma, 127.0.0.1:5555.)
+3. **AirPlay** (receptor de código abierto, se instala aparte): `bash ~/Desktop/LauncherTV/paso6_airplay.sh`
+   Luego en el iPhone: Centro de control → Duplicar pantalla → "Salón". En el Mac: Duplicar pantalla / AirPlay. No sirve para Netflix u otras apps con DRM (se ve negro: es una limitación de Apple, no nuestra).
+4. **Mando desde el iPhone**: en la tele, Conexiones y sistema → **Mando**: sale una dirección (`http://192.168.0.102:8080`) y un **PIN**.
+   Ábrela en Safari, mete el PIN una vez y "Añadir a pantalla de inicio". Tiene cruceta, volumen, teclado para escribir en la tele, apps, HDMI, Encender, Dormir y temporizador. Solo funciona en tu Wi-Fi.
+   Si "control total" no aparece en la cabecera, es que falta aceptar el permiso del punto 2.
+5. Si algo falla: `bash ~/Desktop/LauncherTV/diagnostico.sh` y pásame `capturas/diag.png`, `diag.txt` y `logcat.txt`.
+
+**Mando del Fire TV** (investigado, sección 6): el mando de Amazon solo habla con el Fire TV (Bluetooth propietario, no se puede emparejar con la tele) y hacia la tele solo manda **encender/apagar, volumen y silencio** (por infrarrojos o CEC). No puede mover el cursor del launcher. Opciones reales abajo.
+
+---
+
 ## 1. Datos de la tele
 
 | Dato | Valor |
@@ -22,6 +42,7 @@ Carpeta de trabajo en el Mac: `~/Desktop/LauncherTV`. Código: https://github.co
 | RAM | 2 GB (al empezar solo 494 MB libres) |
 | Almacenamiento | 4,1 GB, al 85 % |
 | Zona horaria | Estaba en America/Chicago → cambiada a **Europe/Madrid** |
+| Device admin | **No lo admite** (`dumpsys device_policy` vacío) → Dormir usa ADB interno |
 
 ---
 
@@ -47,14 +68,21 @@ Se mantuvo a propósito: **enviar desde el móvil (Chromecast/`mediashell`)**, N
 
 Resultado: RAM libre 494 → 837 MB tras la limpieza, **978 MB** con el launcher propio activo.
 
-### Paso 3 · Instalar el launcher (`paso3_instalar_launcher.sh`)
-- Descarga el APK de la release `latest` de GitHub, `adb install -r`, y lo pone como inicio (`cmd package set-home-activity`).
-- Guarda `hdmi_info.txt` (estado de las entradas HDMI) y `logcat.txt` para diagnóstico.
-- Sirve también para **actualizar** a nuevas versiones.
+### Paso 3 · Instalar / actualizar el launcher (`paso3_instalar_launcher.sh`)
+- Descarga el APK de la release `latest` de GitHub, `adb install -r -g`, lo pone como inicio (`cmd package set-home-activity`), reaplica permisos (`READ_TV_LISTINGS` para Continuar viendo) y guarda `hdmi_info.txt` y `logcat.txt`.
 
 ### Paso 4 · Activar el launcher (`paso4_activar_launcher.sh`)
 - El inicio de Google tiene prioridad fija (priority=2) y gana siempre, así que hay que desactivarlo. El script primero comprueba que el launcher propio arranca; si no, no toca nada.
-- Probó el botón Inicio desde dentro de Ajustes → abre el launcher propio ✅. No hizo falta desactivar `setupwraith`.
+
+### Paso 5 · Dormir y sin salvapantallas (`paso5_dormir.sh`)
+- `screensaver_enabled 0`, reposo automático a los 60 min sin uso (`sleep_timeout 3600000`), permisos del launcher.
+
+### Paso 6 · AirPlay (`paso6_airplay.sh`)
+- Descarga la última release de **jqssun/android-airplay-server** (UxPlay, GPL-3) tal como la publica su autor, la instala, la deja correr en segundo plano y pone el nombre de la tele en "Salón" (`bash paso6_airplay.sh "Otro nombre"` para cambiarlo). El tile AirPlay del launcher la abre.
+- Decisión: **no** se compila dentro de nuestro repo ni se firma con nuestra clave; se usa el APK del autor. Si algún día no funciona, alternativas de pago en Play Store: AirScreen, AirReceiver.
+
+### Diagnóstico (`diagnostico.sh`)
+- Captura `capturas/diag.png`, `logcat.txt` filtrado por LauncherTV, `diag.txt` (versión, permisos, Watch Next, device policy).
 
 ### Restaurar (`restaurar.sh`)
 Vuelve a activar todo lo que estaba activo en la copia de seguridad original, pone el inicio de Google y devuelve la zona horaria original. Deja la tele como al principio.
@@ -63,61 +91,69 @@ Vuelve a activar todo lo que estaba activo en la copia de seguridad original, po
 
 ## 3. El launcher (app Android)
 
-Repositorio `launcher-tv`, Kotlin, `minSdk 28`, `targetSdk 28`, sin librerías salvo RecyclerView. Paquete `com.alfredo.launchertv`.
+Repositorio `launcher-tv`, Kotlin, `minSdk 28`, `targetSdk 28`. Paquete `com.alfredo.launchertv`. Dependencias: RecyclerView y **AdbLib** (Cameron Gutman, BSD-3, copiada en `com/cgutman/adblib/`).
 
 ### Cómo se compila
 - Cada `push` a `main` → GitHub Actions compila (`.github/workflows/build.yml`) y publica el APK en la release **latest**:
   `https://github.com/alfredopalmisano/launcher-tv/releases/download/latest/launcher-tv.apk`
-- Antes de compilar, `scripts/descargar_fondos.sh` baja las fotos de `wallpapers/fondos.txt` (Unsplash, licencia libre) y la tipografía **Nunito** (OFL) a `assets/`.
+- Antes de compilar: `scripts/descargar_fondos.sh` baja las fotos de `wallpapers/fondos.txt` (Unsplash, licencia libre) y las tipografías **Antonio** (reloj) y **Nunito** (textos), ambas OFL.
+- Luego `scripts/analizar_fondos.py` (Python, SegFormer `nvidia/segformer-b2-finetuned-ade-512-512` + filtro guiado) separa **cielo / montaña** en cada foto, decide dónde va el reloj y genera `NN.mask.png` + `layout.json` dentro de los assets, y **previsualizaciones** en `wallpapers/preview/` (`hoja.jpg` = todas juntas). Así se comprueba el resultado aquí antes de instalarlo en la tele. Por foto se puede forzar `fg=no` en `fondos.txt` (sin montaña delante).
 - Si falla, el error se publica como comentario del commit (los logs de Actions no se pueden leer desde la sesión de Claude).
 - Firma fija: `signing/launcher.jks` (contraseña `launchertv`). Es una identidad de app para poder actualizar sin desinstalar; no da acceso a nada.
-- Problemas resueltos en CI: `android-actions/setup-android` fallaba en el runner → se usa el SDK preinstalado; lint de Google Play (`ExpiredTargetSdkVersion`) → desactivado.
+- Problemas resueltos en CI: `setup-android` fallaba → SDK preinstalado; lint de Google Play → desactivado; tras los commits automáticos de CI hay que hacer `git pull --rebase` antes de `push`.
 
-### Funciones (v0.16)
-- **Filas**: 1) Favoritos (sin nombres), 2) Conexiones y sistema (HDMI con nombre CEC, AirPlay, Wi-Fi, Bluetooth, Dormir, Tienda, Ajustes), 3) Continuar viendo (Watch Next de Netflix/Prime/Disney+/Max…, con logo de la app). Al bajar se oscurece el fondo.
-- **Modo ambiente**: arriba desde el dock o 5 min sin tocar el mando → solo fondo + reloj; cualquier tecla vuelve.
-- **Mover**: mantener OK → Mover → ← → recolocan la app (amarillo), OK suelta, Atrás cancela.
-- **Dormir**: Ahora / 15…120 min; usa device admin (lockNow). Paso 5 lo concede; el paso 3 lo reaplica en cada actualización.
+### Cómo está hecho el reloj (lo que más costó)
+- `GlassTextView`: dibuja las cifras con **celdas tabulares** (todas las cifras del mismo ancho, los dos puntos más estrechos) y las rellena con un `BitmapShader` del **propio fondo** (a cuarto de resolución, aclarado +14): cada píxel del reloj tiene el color exacto de lo que hay detrás, más un velo blanco del 8 %, un brillo superior, un borde fino y sombra. Fuente Antonio 200 (estilo pantalla de bloqueo del iPhone), 180 sp, siempre del mismo tamaño.
+- **Profundidad**: capa foto → reloj → capa "montaña" (la foto recortada con la máscara) → oscurecido → filas. La montaña tapa solo el **20 % inferior** de las cifras (`OVERLAP=0.20` en el script). El reloj nunca baja de la zona del dock.
+- Las dos capas hacen el mismo zoom lento (Ken Burns) para que no se note la costura.
 
-### Funciones (v0.5, histórico)
-- **Fondos** de montañas/paisajes rotando cada 40 s con fundido y zoom lento (Ken Burns). Bug corregido en 0.3: el zoom cancelaba el fundido y el fondo salía negro.
-- **Reloj de cristal** (`GlassTextView`): las cifras dejan ver el fondo difuminado y aclarado, con brillo superior y sombra; arriba centrado, como el iPhone. Sin fecha (decisión del usuario).
-- **Dock**: favoritas (mantén OK → menú: añadir/quitar del dock, mover, desinstalar, info), entradas **HDMI** conectadas con icono según el aparato (consola/stick/portátil/HDMI; detección por el nombre CEC), **AirPlay** (abre AirScreen o lleva a instalarlo), **Tienda** (Play Store), **Ajustes**, **Apps**.
-- **Pantalla Apps**: cuadrícula con la foto difuminada de fondo; el crédito de la foto va aquí abajo a la derecha, no en la principal.
-- Tarjetas: dock 176 dp, cuadrícula 144 dp (las primeras de 224 dp eran enormes).
+### Funciones (v0.28)
+- **Filas**: 1) Favoritos sin título ni nombres, sobre una **repisa esmerilada** estilo tvOS, iconos 168 dp, brillo al enfocar, bordes con fundido; 2) **Conexiones y sistema**: HDMI conectados con icono del aparato (Fire TV detectado), AirPlay, Wi-Fi, Bluetooth, Dormir, Reiniciar, **Mando**, Tienda, Ajustes; 3) **Continuar viendo** (Watch Next de Netflix/Prime/Disney+/Max/Flujo, carátula + logo de la app). Las filas 2 y 3 no se ven hasta bajar.
+- **Modo ambiente**: arriba desde el dock o 5 min sin tocar → solo fondo + reloj; cualquier tecla vuelve y el foco se queda donde estaba.
+- **Menú de app** (mantener OK): añadir/quitar del dock, **Mover** (← → varias casillas, OK suelta, Atrás cancela), desinstalar, información.
+- **Dormir**: Ahora / 15…120 min. Da la orden `KEYCODE_SLEEP` por **ADB interno** (`TvAdb.kt`, conexión a 127.0.0.1:5555 con clave propia guardada en la app). Requiere aceptar una vez "Permitir depuración USB → Permitir siempre" en la tele. Reiniciar usa lo mismo.
+- **Mando web** (`RemoteService.kt`): servidor HTTP en el puerto 8080, arranca con el launcher y al encender la tele. Página para el móvil con cruceta, volumen, teclado, apps (con sus carátulas), HDMI, Encender (wake lock + `KEYCODE_WAKEUP`), Dormir, temporizador, Reiniciar. **Seguridad**: solo acepta direcciones de la red local, exige un **PIN** de 6 cifras propio de la tele (se ve en el tile Mando), solo teclas de una lista cerrada y el texto se filtra antes de llegar a la shell.
+- **Pantalla Apps**: cuadrícula sobre la foto difuminada; el crédito de la foto va aquí, no en la principal. Sin apps de sistema sin icono (Netflix Observer, etc.).
 
 ### Historial de versiones
 | v | Cambios |
 |---|---|
-| 0.1 | Primera versión: dock, HDMI, fondos, reloj y fecha |
-| 0.2 | Arreglo del fondo negro |
-| 0.3 | Reloj de cristal centrado, Inter, sin fecha, crédito movido a Apps |
-| 0.4 | Nunito, fotos de montañas épicas, menú de app, Tienda, tarjetas pequeñas, Apps con fondo difuminado |
-| 0.5 | Tiles de Ajustes y AirPlay |
-| 0.6 | Tile Dormir (temporizador, device admin), pantalla siempre encendida |
-| 0.7 | Reloj detrás de las montañas (recorte del cielo en la tele), fuente Antonio, HDMI vacíos ocultos |
-| 0.8 | Filas con scroll vertical, Wi-Fi/Bluetooth, fondos de "mountain-wallpaper" |
-| 0.9 | Modo ambiente (arriba / 5 min), modo Mover con flechas, fondos depurados |
-| 0.10 | Reloj ahumado sobre cielos claros, filas inferiores ocultas hasta bajar |
-| 0.11–0.13 | Sin título ni nombres en la primera fila, tarjetas 196 dp, reloj nunca en la zona del dock, Conexiones 2ª fila |
-| 0.14–0.16 | Fila Continuar viendo (Watch Next) con carátulas y logo de la app, HDMI solo en Conexiones, sin Netflix Observer |
+| 0.1–0.6 | Dock, HDMI, fondos, reloj de cristal, Nunito, menú de app, Tienda, Ajustes, AirPlay, Dormir (device admin) |
+| 0.7–0.10 | Reloj detrás de las montañas (1.ª versión, recorte en la tele: no fiable), Antonio, scroll vertical, Wi-Fi/BT, modo ambiente, Mover |
+| 0.11–0.16 | Sin títulos ni nombres en la 1.ª fila, Conexiones 2.ª fila, Continuar viendo con carátulas y logo, HDMI solo en Conexiones |
+| 0.17–0.20 | **Análisis de fotos en GitHub Actions** (SegFormer), máscaras y `layout.json`, previsualizaciones; reloj tamaño fijo arriba; foco se mantiene al salir del ambiente |
+| 0.21–0.24 | Repisa esmerilada del dock, iconos más pequeños, barrido de luz al enfocar, bordes con fundido, filas inferiores ocultas hasta bajar |
+| 0.25–0.26 | Reloj **cristal real** (color exacto de detrás, celdas tabulares, sin rayas), máscara LA (arreglo: la montaña tapaba todo el reloj), borde fino adaptativo |
+| 0.27 | **Dormir y Reiniciar por ADB interno** (AdbLib), tile AirPlay abre el receptor de código abierto |
+| 0.28 | **Mando web para el iPhone** (puerto 8080, PIN, solo red local), tile Mando, arranque al encender |
 
 ---
 
 ## 4. Pendiente / ideas acordadas
-- **PRIORIDAD · Reloj detrás de las montañas**: el recorte en la tele no es fiable. Nuevo método: analizar las fotos en GitHub Actions (Python), generar máscaras y posiciones (`layout.json`) y **previsualizar aquí** antes de publicar. La app solo carga la máscara. Requisitos del usuario: reloj arriba, tamaño fijo, la montaña tapa solo el borde inferior (~20 %), nunca en la zona de las apps.
-- **Bug**: al volver del modo ambiente el foco salta a la primera app (debe quedarse donde estaba).
-- **Dormir**: la app dice "falta permiso" aunque `dpm set-active-admin` da Success. Ver `diag.txt` (dumpsys device_policy) y el log "Dormir: admin activo=".
-- **AirPlay (fase 2)**: compilar jqssun/android-airplay-server (UxPlay, GPL-3, armeabi-v7a) en Actions como segundo APK; paso para instalarlo; el tile AirPlay lo abre. Probado por otros en Xiaomi MiTV Android 9.
-- Ver la **0.5 en la tele** y hacer la pasada de diseño "premium" (dock, tarjetas, foco, brillos).
-- **Fire TV por HDMI**: revisar con `hdmi_info.txt` por qué no se ve bien su tarjeta.
-- **Segunda fila** (elegir): Continuar viendo · Recientes · Tiempo · Atajos de sistema · Mando desde el móvil · Elegir fondos · Carabobo FC.
-- **AirPlay propio** (fase 2): receptor dentro del launcher basado en UxPlay/RPiPlay (pasaría a GPL). 2-4 h de trabajo.
-- **Botón Mi** → pantalla propia con tema del **Carabobo FC**.
-- Encender la tele desde el iPhone (ya funciona enviando desde YouTube/Netflix; mando web pendiente).
+- **Probar en la tele** (mañana): 0.28, Dormir con el permiso ADB, AirPlay (paso 6), mando web. Ajustar el brillo/velo del reloj si Alfredo lo ve demasiado claro u oscuro en alguna foto (`glassAmount` en MainActivity, +14 en GlassTextView).
+- **Botón Mi** → pantalla propia con tema del **Carabobo FC** (PatchWall está desactivado; hay que ver qué intent lanza el botón: `adb shell getevent` / logcat al pulsarlo).
+- **Mando del Fire TV**: decidir entre las opciones de la sección 6.
+- Limpieza de código: quitar `RecentsRepository.kt` (ya no se usa); `Sleep.kt` conserva el camino device admin por si acaso.
+- Comprobar que Continuar viendo trae contenido tras conceder `READ_TV_LISTINGS` (en `diag.txt`, sección Watch Next).
+- Idea: código QR en el diálogo del tile Mando para no teclear la dirección.
+- Idea: elegir fondos desde la tele; tiempo meteorológico en modo ambiente.
 
 ## 5. Cosas a recordar
 - Mientras un script trabaja, no escribir en Terminal (lo escrito se ejecuta después).
 - Si ADB no conecta: Ctrl+C, reiniciar la tele, volver a lanzar.
-- La tele nunca se apaga del todo con el mando (reposo); un reinicio semanal le viene bien.
+- La tele nunca se apaga del todo con el mando (reposo); un reinicio semanal le viene bien (tile Reiniciar).
 - Para volver atrás del todo: `bash ~/Desktop/LauncherTV/restaurar.sh`.
+- Nada de claves personales en el repo: la única "clave" es la firma del APK, que no da acceso a nada. La clave ADB del launcher se genera en la propia tele y no sale de ella.
+
+## 6. Mando del Fire TV: qué se puede y qué no
+
+**Cómo funciona ese mando.** El Alexa Voice Remote se empareja por Bluetooth **solo con dispositivos Fire TV** (protocolo propio de Amazon; no es un mando Bluetooth estándar, así que la tele Xiaomi no lo puede emparejar como mando). Para hablar con la tele usa **infrarrojos** (los mandos con botones de encendido/volumen) o **HDMI-CEC**, y por esas vías solo manda: **encender/apagar la tele, volumen, silencio y, en algunos modelos, cambiar de entrada**. Se configura en el Fire TV: *Ajustes → Mandos y dispositivos Bluetooth → Gestionar equipos → TV*. La cruceta y OK **siempre** van al Fire TV: no hay forma de que muevan el cursor de la tele.
+
+**Opciones reales, de más fácil a más ambiciosa:**
+
+1. **Al revés, y es lo que recomiendo**: usar el **mando de la Xiaomi para todo**. Con HDMI-CEC activado en la tele (Ajustes → Preferencias del dispositivo → Entradas → "Control HDMI") y en el Fire TV, al abrir la tarjeta Fire TV en el launcher, la cruceta, OK, Atrás y reproducción del mando Xiaomi controlan el Fire TV; el botón Inicio de la Xiaomi vuelve a nuestro launcher. Un solo mando en la mesa.
+2. **El iPhone como mando** (hecho esta noche): el mando web controla el launcher y la tele; para el Fire TV existe la app oficial "Amazon Fire TV".
+3. **"Puente" en el Fire TV** (1–2 tardes de trabajo, sin garantías): una app propia instalada en el Fire TV por ADB que, al abrirla, captura las teclas del mando de Amazon y las reenvía por Wi-Fi al mando web del launcher (`/api/key`), y una tecla para "volver al Fire TV". Limitaciones: el botón Inicio del mando de Amazon no se puede capturar (siempre abre el inicio del Fire TV), y habría que abrir la app puente cada vez. Funciona, pero es incómodo comparado con la opción 1.
+4. **Un mando universal** con base de datos de ambos (Xiaomi + Fire TV), p. ej. Logitech Harmony (descatalogado) o SofaBaton: controla ambos aparatos con un solo mando, sin tocar software.
+
+Fuentes consultadas: guías de configuración del control de equipos del Fire TV ([androidexperto](https://androidexperto.com/how-to-change-the-tv-input-with-a-firestick-remote-2/), [Tom's Guide](https://forums.tomsguide.com/threads/how-to-enable-hdmi-cec-on-your-fire-tv.212722/latest)), [redimpulz/firetv-cec-volume](https://github.com/redimpulz/firetv-cec-volume) (confirma que desde el Fire TV solo salen órdenes CEC de volumen/encendido), documentación de emparejamiento del mando ([Sony: mandos Bluetooth en Android TV](https://www.sony.ee/electronics/support/articles/00199201)).
