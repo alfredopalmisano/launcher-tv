@@ -40,6 +40,11 @@ sealed class Tile {
         override val label: String get() = "Ajustes"
     }
 
+    object SleepTile : Tile() {
+        override val id: String get() = "sleep"
+        override val label: String get() = "Dormir"
+    }
+
     object AirPlay : Tile() {
         override val id: String get() = "airplay"
         override val label: String get() = "AirPlay"

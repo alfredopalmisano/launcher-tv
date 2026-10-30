@@ -88,6 +88,7 @@ class TileAdapter(
                 Tile.Store -> showIcon(R.drawable.ic_store)
                 Tile.SettingsTile -> showIcon(R.drawable.ic_settings)
                 Tile.AirPlay -> showIcon(R.drawable.ic_airplay)
+                Tile.SleepTile -> showIcon(R.drawable.ic_moon)
             }
         }
 

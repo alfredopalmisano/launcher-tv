@@ -63,6 +63,8 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        // Sin salvapantallas mientras se ve el launcher.
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         clock = findViewById(R.id.clock)
         dock = findViewById(R.id.dock)
@@ -157,6 +159,7 @@ class MainActivity : Activity() {
         tiles.addAll(favorites.get(apps))
         tiles.addAll(InputsRepository.loadConnected(this))
         tiles.add(Tile.AirPlay)
+        tiles.add(Tile.SleepTile)
         tiles.add(Tile.Store)
         tiles.add(Tile.SettingsTile)
         tiles.add(Tile.AllApps)
@@ -187,6 +190,7 @@ class MainActivity : Activity() {
                 if (!tryStart(Intent(Settings.ACTION_SETTINGS))) toast(getString(R.string.cannot_open, "Ajustes"))
             }
             Tile.AirPlay -> openAirPlay()
+            Tile.SleepTile -> showSleepMenu()
             Tile.Store -> {
                 val store = packageManager.getLeanbackLaunchIntentForPackage("com.android.vending")
                     ?: packageManager.getLaunchIntentForPackage("com.android.vending")
@@ -200,6 +204,29 @@ class MainActivity : Activity() {
         true
     } catch (e: Exception) {
         false
+    }
+
+    /** Temporizador de apagado (tile Dormir). */
+    private fun showSleepMenu() {
+        if (!Sleep.isAdmin(this)) { toast(getString(R.string.sleep_no_admin)) }
+        val remaining = Sleep.remainingMinutes(this)
+        val options = listOf(15, 30, 45, 60, 90, 120)
+        val labels = ArrayList<String>()
+        val actions = ArrayList<() -> Unit>()
+        if (remaining != null) {
+            labels.add(getString(R.string.sleep_cancel_timer, remaining))
+            actions.add { Sleep.cancel(this); toast(getString(R.string.sleep_cancelled)) }
+        }
+        labels.add(getString(R.string.sleep_now)); actions.add { if (!Sleep.sleepNow(this)) toast(getString(R.string.sleep_no_admin)) }
+        for (m in options) {
+            labels.add(getString(R.string.sleep_minutes, m))
+            actions.add { Sleep.schedule(this, m); toast(getString(R.string.sleep_set, m)) }
+        }
+        labels.add(getString(R.string.menu_cancel)); actions.add { }
+        AlertDialog.Builder(this, R.style.Theme_Launcher_Dialog)
+            .setTitle(R.string.sleep_title)
+            .setItems(labels.toTypedArray()) { _, which -> actions[which]() }
+            .show()
     }
 
     /**
