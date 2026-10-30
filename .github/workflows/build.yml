@@ -35,6 +35,8 @@ jobs:
       - name: Analizar fondos (máscaras de montaña, posición del reloj, previsualizaciones)
         run: |
           pip install -q pillow numpy
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -q transformers
           python3 scripts/analizar_fondos.py app/src/main/assets/wallpapers app/src/main/assets/wallpapers wallpapers/preview
           mkdir -p wallpapers/cache
           cp app/src/main/assets/wallpapers/*.jpg app/src/main/assets/wallpapers/creditos.txt wallpapers/cache/ 2>/dev/null || true

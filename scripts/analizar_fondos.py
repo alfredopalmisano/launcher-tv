@@ -21,6 +21,7 @@ MIN_TOP = 48               # margen superior mínimo (px)
 DOCK_TOP = 852 - 36        # el reloj nunca pasa de aquí (borde superior del dock menos margen)
 MAX_COVERAGE = 0.45        # si la montaña taparía más que esto, no se usa el efecto
 GRAD_T = 9.0               # umbral de gradiente para "cielo suave" (0-255)
+METHOD = {"last": "?"}
 
 
 def skyline_mask(img):
@@ -48,18 +49,21 @@ def skyline_mask(img):
     soft = (g < GRAD_T) & ((np.abs(lum - ref_lum) < 80) | (lum > 190))
     soft[int(MH * 0.78):, :] = False
 
-    sky = np.zeros((MH, MW), dtype=bool)
-    sky[0, :] = soft[0, :]
-    for _ in range(MH + MW):
-        grown = sky.copy()
-        grown[1:, :] |= sky[:-1, :]
-        grown[:-1, :] |= sky[1:, :]
-        grown[:, 1:] |= sky[:, :-1]
-        grown[:, :-1] |= sky[:, 1:]
-        grown &= soft
-        if (grown == sky).all():
-            break
-        sky = grown
+    sky = sky_pixels_ml(img)
+    METHOD["last"] = "ml" if sky is not None else "heurístico"
+    if sky is None:
+        sky = np.zeros((MH, MW), dtype=bool)
+        sky[0, :] = soft[0, :]
+        for _ in range(MH + MW):
+            grown = sky.copy()
+            grown[1:, :] |= sky[:-1, :]
+            grown[:-1, :] |= sky[1:, :]
+            grown[:, 1:] |= sky[:, :-1]
+            grown[:, :-1] |= sky[:, 1:]
+            grown &= soft
+            if (grown == sky).all():
+                break
+            sky = grown
 
     # El paisaje es lo NO-cielo que está conectado con el borde inferior (así las nubes sueltas,
     # que no se inundaron desde arriba, no cuentan como montaña).
@@ -91,6 +95,34 @@ def skyline_mask(img):
     mask[ys >= smooth[None, :]] = 255
     m = Image.fromarray(mask, "L").filter(ImageFilter.GaussianBlur(1.0))
     return m, smooth * (H / MH), bright_top
+
+
+_ML = {}
+
+
+def sky_pixels_ml(img):
+    """Cielo según un modelo de segmentación semántica (SegFormer entrenado en ADE20K: clase 2 = cielo).
+    Devuelve una matriz booleana MHxMW o None si el modelo no está disponible."""
+    try:
+        import torch
+        from transformers import SegformerForSemanticSegmentation, SegformerImageProcessor
+    except Exception:
+        return None
+    try:
+        if "model" not in _ML:
+            name = os.environ.get("SEG_MODEL", "nvidia/segformer-b2-finetuned-ade-512-512")
+            _ML["proc"] = SegformerImageProcessor.from_pretrained(name)
+            _ML["model"] = SegformerForSemanticSegmentation.from_pretrained(name).eval()
+        inputs = _ML["proc"](images=img.convert("RGB"), return_tensors="pt")
+        with torch.no_grad():
+            logits = _ML["model"](**inputs).logits
+        up = torch.nn.functional.interpolate(logits, size=(MH, MW), mode="bilinear", align_corners=False)
+        probs = torch.softmax(up, dim=1)[0]
+        sky = (probs[2] > 0.5).numpy()          # 2 = sky en ADE20K
+        return sky
+    except Exception as e:
+        print("  (modelo no disponible:", e, ")")
+        return None
 
 
 def clock_font():
@@ -133,22 +165,56 @@ def plan(line_screen, sky_ok, font):
 
 
 def preview(img, mask, p, font, out_path, bright):
+    """Imita el reloj de cristal de la app: relleno con el fondo difuminado (aclarado u oscurecido),
+    velo, brillo superior y sombra; después la montaña por delante."""
     base = img.convert("RGBA")
-    layer = Image.new("RGBA", base.size, (0, 0, 0, 0))
-    d = ImageDraw.Draw(layer)
     text = "22:38"
     bbox = font.getbbox(text)
     x = (W - (bbox[2] - bbox[0])) // 2 - bbox[0]
     y = p["digitTop"] - bbox[1]
-    fill = (28, 36, 48, 200) if bright else (255, 255, 255, 215)
-    d.text((x + 4, y + 10), text, font=font, fill=(0, 0, 0, 90))
-    d.text((x, y), text, font=font, fill=fill, stroke_width=2, stroke_fill=(255, 255, 255, 110))
-    comp = Image.alpha_composite(base, layer)
+
+    # máscara de las cifras
+    tmask = Image.new("L", base.size, 0)
+    ImageDraw.Draw(tmask).text((x, y), text, font=font, fill=255)
+    # sombra
+    shadow = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    sh = Image.new("L", base.size, 0)
+    ImageDraw.Draw(sh).text((x, y + 12), text, font=font, fill=140)
+    sh = sh.filter(ImageFilter.GaussianBlur(18))
+    shadow.putalpha(sh)
+    comp = Image.alpha_composite(base, shadow)
+    # relleno de cristal: fondo muy difuminado
+    glass = img.resize((48, 27), Image.BILINEAR).resize((W, H), Image.BILINEAR).convert("RGB")
+    g = np.asarray(glass).astype(np.float32)
+    if bright:
+        g = g * 0.55 - 25
+        veil = np.array([26, 36, 48], dtype=np.float32); veil_a = 0.38
+    else:
+        g = g * 0.75 + 70
+        veil = np.array([255, 255, 255], dtype=np.float32); veil_a = 0.38
+    g = g * (1 - veil_a) + veil * veil_a
+    glass = Image.fromarray(np.clip(g, 0, 255).astype(np.uint8), "RGB").convert("RGBA")
+    glass.putalpha(tmask)
+    comp = Image.alpha_composite(comp, glass)
+    # brillo superior (cristal)
+    grad = np.zeros((H, W), dtype=np.uint8)
+    top, bot = p["digitTop"], p["digitTop"] + p["digitH"]
+    for yy in range(top, min(bot, H)):
+        t = (yy - top) / max(1, (bot - top))
+        grad[yy, :] = int(140 * (1 - t) ** 2) if t < 0.5 else int(20 * (t - 0.5) * 2)
+    gloss = Image.new("RGBA", base.size, (255, 255, 255, 0))
+    ga = Image.fromarray(grad, "L")
+    ga = Image.fromarray((np.asarray(ga).astype(np.uint16) * np.asarray(tmask) // 255).astype(np.uint8), "L")
+    gloss.putalpha(ga)
+    comp = Image.alpha_composite(comp, gloss)
+    # borde fino
+    edge = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    ImageDraw.Draw(edge).text((x, y), text, font=font, fill=(0, 0, 0, 0), stroke_width=2, stroke_fill=(255, 255, 255, 90))
+    comp = Image.alpha_composite(comp, edge)
     if p["useFg"]:
         fg = base.copy()
         fg.putalpha(mask.resize((W, H), Image.BILINEAR))
         comp = Image.alpha_composite(comp, fg)
-    # dock de muestra para ver que no choca
     d2 = ImageDraw.Draw(comp)
     for i in range(5):
         x0 = 104 + i * 440
@@ -197,7 +263,8 @@ def main():
         if p["useFg"]:
             mask.save(os.path.join(out_assets, name.replace(".jpg", ".mask.png")))
         preview(img, mask, p, font, os.path.join(out_prev, name), bright)
-        print(f"{name}: cielo={sky_frac:.2f} pico={p['peakY']} top={p['digitTop']} tapa={p['coverage']:.0%} fg={p['useFg']} claro={bright}")
+        p["method"] = METHOD["last"]
+        print(f"{name}: [{METHOD['last']}] cielo={sky_frac:.2f} pico={p['peakY']} top={p['digitTop']} tapa={p['coverage']:.0%} fg={p['useFg']} claro={bright}")
     with open(os.path.join(out_assets, "layout.json"), "w") as f:
         json.dump(layout, f, indent=1)
     # hoja de contactos
