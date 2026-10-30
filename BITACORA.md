@@ -1,5 +1,11 @@
 # LauncherTV · Bitácora del proyecto
 
+> **Si se reinicia o comprime el chat:** abre un chat nuevo en el proyecto "Proyectos Personales" y escribe:
+> *"Sigue con LauncherTV. Lee BITACORA.md del repo github.com/alfredopalmisano/launcher-tv y la carpeta ~/Desktop/LauncherTV del Mac."*
+> Claude tendrá que: (1) conectar el repo con `add_repo` (ya está autorizado en GitHub), (2) pedir acceso a la carpeta
+> `~/Desktop/LauncherTV`, (3) leer este archivo y la sección "Pendiente". Los scripts del Mac se ejecutan en Terminal con
+> `bash ~/Desktop/LauncherTV/<script>.sh`; la tele responde por ADB en 192.168.0.102 (si no, reiniciarla).
+
 Proyecto personal: pantalla de inicio propia, estilo Apple TV, para la tele **Xiaomi MiTV-MSSP3 (Android TV 9)**, más una limpieza reversible del sistema.
 Carpeta de trabajo en el Mac: `~/Desktop/LauncherTV`. Código: https://github.com/alfredopalmisano/launcher-tv
 
@@ -67,7 +73,13 @@ Repositorio `launcher-tv`, Kotlin, `minSdk 28`, `targetSdk 28`, sin librerías s
 - Firma fija: `signing/launcher.jks` (contraseña `launchertv`). Es una identidad de app para poder actualizar sin desinstalar; no da acceso a nada.
 - Problemas resueltos en CI: `android-actions/setup-android` fallaba en el runner → se usa el SDK preinstalado; lint de Google Play (`ExpiredTargetSdkVersion`) → desactivado.
 
-### Funciones (v0.5)
+### Funciones (v0.16)
+- **Filas**: 1) Favoritos (sin nombres), 2) Conexiones y sistema (HDMI con nombre CEC, AirPlay, Wi-Fi, Bluetooth, Dormir, Tienda, Ajustes), 3) Continuar viendo (Watch Next de Netflix/Prime/Disney+/Max…, con logo de la app). Al bajar se oscurece el fondo.
+- **Modo ambiente**: arriba desde el dock o 5 min sin tocar el mando → solo fondo + reloj; cualquier tecla vuelve.
+- **Mover**: mantener OK → Mover → ← → recolocan la app (amarillo), OK suelta, Atrás cancela.
+- **Dormir**: Ahora / 15…120 min; usa device admin (lockNow). Paso 5 lo concede; el paso 3 lo reaplica en cada actualización.
+
+### Funciones (v0.5, histórico)
 - **Fondos** de montañas/paisajes rotando cada 40 s con fundido y zoom lento (Ken Burns). Bug corregido en 0.3: el zoom cancelaba el fundido y el fondo salía negro.
 - **Reloj de cristal** (`GlassTextView`): las cifras dejan ver el fondo difuminado y aclarado, con brillo superior y sombra; arriba centrado, como el iPhone. Sin fecha (decisión del usuario).
 - **Dock**: favoritas (mantén OK → menú: añadir/quitar del dock, mover, desinstalar, info), entradas **HDMI** conectadas con icono según el aparato (consola/stick/portátil/HDMI; detección por el nombre CEC), **AirPlay** (abre AirScreen o lleva a instalarlo), **Tienda** (Play Store), **Ajustes**, **Apps**.
@@ -82,10 +94,21 @@ Repositorio `launcher-tv`, Kotlin, `minSdk 28`, `targetSdk 28`, sin librerías s
 | 0.3 | Reloj de cristal centrado, Inter, sin fecha, crédito movido a Apps |
 | 0.4 | Nunito, fotos de montañas épicas, menú de app, Tienda, tarjetas pequeñas, Apps con fondo difuminado |
 | 0.5 | Tiles de Ajustes y AirPlay |
+| 0.6 | Tile Dormir (temporizador, device admin), pantalla siempre encendida |
+| 0.7 | Reloj detrás de las montañas (recorte del cielo en la tele), fuente Antonio, HDMI vacíos ocultos |
+| 0.8 | Filas con scroll vertical, Wi-Fi/Bluetooth, fondos de "mountain-wallpaper" |
+| 0.9 | Modo ambiente (arriba / 5 min), modo Mover con flechas, fondos depurados |
+| 0.10 | Reloj ahumado sobre cielos claros, filas inferiores ocultas hasta bajar |
+| 0.11–0.13 | Sin título ni nombres en la primera fila, tarjetas 196 dp, reloj nunca en la zona del dock, Conexiones 2ª fila |
+| 0.14–0.16 | Fila Continuar viendo (Watch Next) con carátulas y logo de la app, HDMI solo en Conexiones, sin Netflix Observer |
 
 ---
 
 ## 4. Pendiente / ideas acordadas
+- **PRIORIDAD · Reloj detrás de las montañas**: el recorte en la tele no es fiable. Nuevo método: analizar las fotos en GitHub Actions (Python), generar máscaras y posiciones (`layout.json`) y **previsualizar aquí** antes de publicar. La app solo carga la máscara. Requisitos del usuario: reloj arriba, tamaño fijo, la montaña tapa solo el borde inferior (~20 %), nunca en la zona de las apps.
+- **Bug**: al volver del modo ambiente el foco salta a la primera app (debe quedarse donde estaba).
+- **Dormir**: la app dice "falta permiso" aunque `dpm set-active-admin` da Success. Ver `diag.txt` (dumpsys device_policy) y el log "Dormir: admin activo=".
+- **AirPlay (fase 2)**: compilar jqssun/android-airplay-server (UxPlay, GPL-3, armeabi-v7a) en Actions como segundo APK; paso para instalarlo; el tile AirPlay lo abre. Probado por otros en Xiaomi MiTV Android 9.
 - Ver la **0.5 en la tele** y hacer la pasada de diseño "premium" (dock, tarjetas, foco, brillos).
 - **Fire TV por HDMI**: revisar con `hdmi_info.txt` por qué no se ve bien su tarjeta.
 - **Segunda fila** (elegir): Continuar viendo · Recientes · Tiempo · Atajos de sistema · Mando desde el móvil · Elegir fondos · Carabobo FC.
