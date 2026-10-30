@@ -255,6 +255,7 @@ class MainActivity : Activity() {
     /** Añade una fila horizontal (título + tarjetas) al contenedor de filas. */
     private fun addRow(titleRes: Int, adapter: TileAdapter): RecyclerView {
         val d = resources.displayMetrics.density
+        val first = rowsBox.childCount < 2
         val title = TextView(this).apply {
             text = getString(titleRes)
             setTextColor(0xCCFFFFFF.toInt())
@@ -275,7 +276,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             clipChildren = false
             clipToPadding = false
-            addView(title, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            if (!first) addView(title, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
         if (rowsBox.childCount >= 2) row.alpha = 0f   // filas de abajo: ocultas hasta bajar
@@ -383,6 +384,9 @@ class MainActivity : Activity() {
             val cov = sky.coverage(left, wanted, left + w, wanted + clockH, screenW, screenH, photoW, photoH)
             if (cov in 0.03f..0.45f) { top = wanted; useFg = true }
             else if (cov < 0.03f) { top = wanted }   // cielo libre: el reloj igualmente arriba
+            android.util.Log.i(TAG, "sky: peakY=%.0f mean=%d frac=%.2f cov=%.2f wanted=%.0f -> top=%.0f useFg=%b".format(peakY, sky.meanY, sky.skyFraction, cov, wanted, top, useFg))
+        } else {
+            android.util.Log.i(TAG, "sky: null -> top=%.0f (dockTop=%.0f clockH=%.0f)".format(top, dockTop, clockH))
         }
         box.animate().translationY(top - 72 * d).setDuration(1200).start()
         return useFg
@@ -490,6 +494,7 @@ class MainActivity : Activity() {
         private const val GRID_TILE_DP = 144
         private const val ROW_TILE_DP = 150
         private const val IDLE_MS = 5 * 60_000L
+        private const val TAG = "LauncherTV"
         private val AIRPLAY_RECEIVERS = listOf(
             "com.ionitech.airscreen",          // AirScreen
             "com.sand.airdroidcast.tv",        // AirDroid Cast

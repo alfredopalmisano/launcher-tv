@@ -80,7 +80,10 @@ class Wallpapers(
         if (files.isEmpty()) return
         index = (index + 1) % files.size
         val bmp = decode(files[index]) ?: return
-        val sky = try { Skyline.compute(bmp) } catch (e: Throwable) { null }
+        val sky = try { Skyline.compute(bmp) } catch (e: Throwable) {
+            android.util.Log.e("LauncherTV", "Skyline falló en ${files[index]}", e); null
+        }
+        android.util.Log.i("LauncherTV", "fondo ${files[index]} ${bmp.width}x${bmp.height} sky=${sky != null}")
 
         val outgoing = layers[current]
         current = 1 - current
