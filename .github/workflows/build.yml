@@ -33,7 +33,17 @@ jobs:
         run: bash scripts/descargar_fondos.sh
 
       - name: Compilar
-        run: gradle assembleRelease --no-daemon
+        run: |
+          set -o pipefail
+          gradle assembleRelease --no-daemon --stacktrace 2>&1 | tee build.log
+
+      - name: Publicar el error como comentario del commit (si falla)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          { echo '### Error de compilación'; echo '```'; grep -nE "^e: |error:|Error|FAILED|What went wrong|Caused by|\* Where|> Task .* FAILED" build.log | head -80; echo '--- últimas líneas ---'; tail -n 40 build.log; echo '```'; } > comentario.md
+          gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" -F body=@comentario.md >/dev/null
 
       - name: Preparar APK
         run: cp app/build/outputs/apk/release/app-release.apk launcher-tv.apk
