@@ -38,12 +38,13 @@ jobs:
           cd app/src/main/assets/wallpapers
           montage -label '%f' *.jpg -tile 4x -geometry 480x270+6+6 -background '#111' -fill white -pointsize 18 ../../../../../wallpapers/preview.jpg || true
           cd "$GITHUB_WORKSPACE"
-          if [ -f wallpapers/preview.jpg ]; then
-            git config user.name "github-actions"; git config user.email "actions@github.com"
-            git add wallpapers/preview.jpg
-            git commit -q -m "Hoja de contactos de los fondos [skip ci]" || true
-            git push -q origin HEAD:main || true
-          fi
+          mkdir -p wallpapers/cache
+          cp app/src/main/assets/wallpapers/*.jpg app/src/main/assets/wallpapers/creditos.txt wallpapers/cache/ 2>/dev/null || true
+          cp app/src/main/assets/fonts/*.ttf wallpapers/cache/ 2>/dev/null || true
+          git config user.name "github-actions"; git config user.email "actions@github.com"
+          git add wallpapers/preview.jpg wallpapers/cache
+          git commit -q -m "Fondos descargados y hoja de contactos [skip ci]" || true
+          git push -q origin HEAD:main || true
 
       - name: Compilar
         run: |

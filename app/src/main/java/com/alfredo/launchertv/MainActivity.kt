@@ -43,6 +43,7 @@ class MainActivity : Activity() {
     private lateinit var clockBox: View
     private var dockTopPx = 0f
     private var ambient = false
+    private var dockFocusPos = 0
     private var movingPkg: String? = null
     private val idleToAmbient = Runnable { if (!ambient && overlay.visibility != View.VISIBLE) setAmbient(true) }
     private lateinit var overlay: View
@@ -225,10 +226,17 @@ class MainActivity : Activity() {
     private fun setAmbient(on: Boolean) {
         ambient = on
         val d = resources.displayMetrics.density
+        if (on) {
+            // Recordar en qué app estaba el cursor para volver exactamente ahí.
+            val focused = dock.focusedChild
+            if (focused != null) dockFocusPos = dock.getChildAdapterPosition(focused).coerceAtLeast(0)
+            rowsScroll.scrollTo(0, 0)
+        }
         rowsScroll.animate().alpha(if (on) 0f else 1f).translationY(if (on) 40 * d else 0f).setDuration(350).withEndAction {
-            if (!on) dock.post { dock.getChildAt(0)?.requestFocus() }
+            if (!on) dock.post {
+                (dock.layoutManager?.findViewByPosition(dockFocusPos) ?: dock.getChildAt(0))?.requestFocus()
+            }
         }.start()
-        if (on) rowsScroll.scrollTo(0, 0)
     }
 
     private fun startMoving(tile: Tile.App) {
