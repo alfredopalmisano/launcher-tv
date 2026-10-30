@@ -21,6 +21,10 @@ import android.widget.Toast
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import android.view.ViewGroup
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.Space
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -29,12 +33,22 @@ class MainActivity : Activity() {
 
     private lateinit var clock: GlassTextView
     private lateinit var dock: RecyclerView
+    private lateinit var recentsRow: RecyclerView
+    private lateinit var systemRow: RecyclerView
+    private lateinit var rowsScroll: ScrollView
+    private lateinit var rowsBox: LinearLayout
+    private lateinit var topSpace: Space
+    private lateinit var dim: View
+    private lateinit var clockBox: View
+    private var dockTopPx = 0f
     private lateinit var overlay: View
     private lateinit var grid: RecyclerView
     private lateinit var wallpapers: Wallpapers
     private lateinit var favorites: Favorites
 
     private val dockAdapter = TileAdapter(DOCK_TILE_DP, ::open) { showAppMenu(it, fromDock = true) }
+    private val recentsAdapter = TileAdapter(ROW_TILE_DP, ::open) { showAppMenu(it, fromDock = false) }
+    private val systemAdapter = TileAdapter(ROW_TILE_DP, ::open) { false }
     private val gridAdapter = TileAdapter(GRID_TILE_DP, ::open) { showAppMenu(it, fromDock = false) }
 
     private var apps: List<Tile.App> = emptyList()
@@ -67,14 +81,21 @@ class MainActivity : Activity() {
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         clock = findViewById(R.id.clock)
-        dock = findViewById(R.id.dock)
         overlay = findViewById(R.id.overlay)
+        rowsScroll = findViewById(R.id.rowsScroll)
+        rowsBox = findViewById(R.id.rows)
+        topSpace = findViewById(R.id.topSpace)
+        dim = findViewById(R.id.dim)
+        clockBox = findViewById(R.id.clockBox)
+        dock = addRow(R.string.row_favorites, dockAdapter)
+        recentsRow = addRow(R.string.row_recents, recentsAdapter)
+        systemRow = addRow(R.string.row_system, systemAdapter)
         grid = findViewById(R.id.grid)
         favorites = Favorites(this)
 
         val dm = resources.displayMetrics
         clock.typeface = Fonts.clock(this)
-        clock.textSizePx = 250f * dm.scaledDensity
+        clock.textSizePx = 215f * dm.scaledDensity
         clock.glassAmount = 0.62f
         findViewById<TextView>(R.id.credit).typeface = Fonts.light(this)
         findViewById<TextView>(R.id.overlayTitle).typeface = Fonts.light(this)
@@ -84,19 +105,32 @@ class MainActivity : Activity() {
             findViewById(R.id.wallB), findViewById(R.id.fgB),
             findViewById(R.id.credit))
         val overlayBg = findViewById<ImageView>(R.id.overlayBg)
-        val clockBox = findViewById<View>(R.id.clockBox)
         wallpapers.onPhotoChanged = { photo, sky ->
             clock.setBackdrop(photo, dm.widthPixels, dm.heightPixels)
-            placeClock(clockBox, sky, dm.heightPixels, photo.height)
+            val useFg = placeClock(clockBox, sky, dm.widthPixels, dm.heightPixels, photo.width, photo.height)
             // Fondo de la pantalla de apps: la misma foto muy difuminada.
             val tiny = Bitmap.createScaledBitmap(photo, 32, 18, true)
             overlayBg.setImageBitmap(Bitmap.createScaledBitmap(tiny, 320, 180, true))
             tiny.recycle()
+            useFg
         }
 
-        dock.layoutManager = LinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
-        dock.adapter = dockAdapter
-        dock.itemAnimator = null
+        // La primera fila queda abajo; las demás, fuera de pantalla hasta que bajes.
+        rowsScroll.viewTreeObserver.addOnGlobalLayoutListener {
+            val firstRow = rowsBox.getChildAt(1) ?: return@addOnGlobalLayoutListener
+            val wanted = rowsScroll.height - firstRow.height - (24 * dm.density).toInt()
+            if (wanted > 0 && topSpace.layoutParams.height != wanted) {
+                topSpace.layoutParams = topSpace.layoutParams.apply { height = wanted }
+                topSpace.requestLayout()
+            }
+            dockTopPx = (wanted + (36 * dm.density)).toFloat()
+        }
+        rowsScroll.viewTreeObserver.addOnScrollChangedListener {
+            // Al bajar a las otras filas se oscurece el fondo y se atenúa el reloj.
+            val p = (rowsScroll.scrollY / (260 * dm.density)).coerceIn(0f, 1f)
+            dim.alpha = 0.65f * p
+            clockBox.alpha = 1f - p
+        }
 
         val gridWidthDp = dm.widthPixels / dm.density - 2 * 52
         grid.layoutManager = GridLayoutManager(this, (gridWidthDp / (GRID_TILE_DP + 24)).toInt().coerceAtLeast(3))
@@ -152,10 +186,57 @@ class MainActivity : Activity() {
             or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
     }
 
+    /** Añade una fila horizontal (título + tarjetas) al contenedor de filas. */
+    private fun addRow(titleRes: Int, adapter: TileAdapter): RecyclerView {
+        val d = resources.displayMetrics.density
+        val title = TextView(this).apply {
+            text = getString(titleRes)
+            setTextColor(0xCCFFFFFF.toInt())
+            textSize = 15f
+            typeface = Fonts.medium(this@MainActivity)
+            setShadowLayer(8f, 0f, 2f, 0x80000000.toInt())
+            setPadding((64 * d).toInt(), (10 * d).toInt(), 0, 0)
+        }
+        val list = RecyclerView(this).apply {
+            layoutManager = LinearLayoutManager(this@MainActivity, RecyclerView.HORIZONTAL, false)
+            this.adapter = adapter
+            itemAnimator = null
+            clipToPadding = false
+            clipChildren = false
+            setPadding((52 * d).toInt(), 0, (52 * d).toInt(), 0)
+        }
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            clipChildren = false
+            clipToPadding = false
+            addView(title, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        rowsBox.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        return list
+    }
+
     private fun reload() {
         apps = AppsRepository.load(this)
         gridAdapter.submit(apps)
         refreshDock()
+    }
+
+    private fun refreshRows() {
+        val favs = favorites.get(apps).map { it.packageName }.toSet()
+        val recents = RecentsRepository.load(this, apps, favs)
+        recentsAdapter.submit(recents)
+        (recentsRow.parent as View).visibility = if (recents.isEmpty()) View.GONE else View.VISIBLE
+
+        val sys = ArrayList<Tile>()
+        sys.addAll(InputsRepository.loadConnected(this))
+        sys.add(Tile.AirPlay)
+        sys.add(Tile.Action("wifi", getString(R.string.wifi), R.drawable.ic_wifi))
+        sys.add(Tile.Action("bt", getString(R.string.bluetooth), R.drawable.ic_bluetooth))
+        sys.add(Tile.SleepTile)
+        sys.add(Tile.Store)
+        sys.add(Tile.SettingsTile)
+        systemAdapter.submit(sys)
     }
 
     private fun refreshDock(focus: String? = null) {
@@ -163,12 +244,9 @@ class MainActivity : Activity() {
         val tiles = ArrayList<Tile>()
         tiles.addAll(favorites.get(apps))
         tiles.addAll(InputsRepository.loadConnected(this))
-        tiles.add(Tile.AirPlay)
-        tiles.add(Tile.SleepTile)
-        tiles.add(Tile.Store)
-        tiles.add(Tile.SettingsTile)
         tiles.add(Tile.AllApps)
         dockAdapter.submit(tiles)
+        refreshRows()
         if (focus != null) {
             val pos = dockAdapter.indexOf(focus)
             if (pos >= 0) dock.post { dock.layoutManager?.findViewByPosition(pos)?.requestFocus() }
@@ -196,6 +274,10 @@ class MainActivity : Activity() {
             }
             Tile.AirPlay -> openAirPlay()
             Tile.SleepTile -> showSleepMenu()
+            is Tile.Action -> when (tile.id) {
+                "wifi" -> if (!tryStart(Intent(Settings.ACTION_WIFI_SETTINGS))) tryStart(Intent(Settings.ACTION_SETTINGS))
+                "bt" -> if (!tryStart(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))) tryStart(Intent(Settings.ACTION_SETTINGS))
+            }
             Tile.Store -> {
                 val store = packageManager.getLeanbackLaunchIntentForPackage("com.android.vending")
                     ?: packageManager.getLaunchIntentForPackage("com.android.vending")
@@ -213,18 +295,27 @@ class MainActivity : Activity() {
 
     /**
      * Coloca el reloj según el horizonte de la foto: las cifras quedan un poco por detrás
-     * de las cumbres (como el iPhone). Sin cielo claro, posición fija arriba.
+     * de las cumbres (como el iPhone) y apoyadas sobre el dock. Devuelve si merece la pena
+     * usar el primer plano (si taparía demasiado el reloj, no).
      */
-    private fun placeClock(box: View, sky: Skyline.Result?, screenH: Int, photoH: Int) {
+    private fun placeClock(box: View, sky: Skyline.Result?, screenW: Int, screenH: Int, photoW: Int, photoH: Int): Boolean {
         val d = resources.displayMetrics.density
-        val clockH = clock.textSizePx * 0.95f
-        var top = 72 * d
+        val clockH = clock.textSizePx * 0.92f
+        val dockTop = if (dockTopPx > 0f) dockTopPx else screenH * 0.72f
+        val maxTop = dockTop - clockH * 0.82f              // como mucho un 18 % del reloj detrás del dock
+        val minTop = 24 * d
+        var top = (dockTop - clockH * 0.90f).coerceIn(minTop, maxTop)   // por defecto: apoyado sobre el dock
+        var useFg = false
         if (sky != null) {
-            val peakY = sky.topY.toFloat() * screenH / photoH      // fila de la cumbre más alta en pantalla
-            val wanted = peakY - clockH * 0.62f                      // ~38 % de las cifras tapadas por las cumbres
-            top = wanted.coerceIn(28 * d, screenH * 0.42f)
+            val peakY = sky.topY.toFloat() * screenH / photoH
+            val wanted = (peakY - clockH * 0.55f).coerceIn(minTop, maxTop)
+            val w = clock.measuredWidth.toFloat().takeIf { it > 0f } ?: (screenW * 0.5f)
+            val left = (screenW - w) / 2f
+            val cov = sky.coverage(left, wanted, left + w, wanted + clockH, screenW, screenH, photoW, photoH)
+            if (cov in 0.08f..0.6f) { top = wanted; useFg = true }
         }
         box.animate().translationY(top - 72 * d).setDuration(1200).start()
+        return useFg
     }
 
     /** Temporizador de apagado (tile Dormir). */
@@ -328,6 +419,7 @@ class MainActivity : Activity() {
     companion object {
         private const val DOCK_TILE_DP = 176
         private const val GRID_TILE_DP = 144
+        private const val ROW_TILE_DP = 150
         private val AIRPLAY_RECEIVERS = listOf(
             "com.ionitech.airscreen",          // AirScreen
             "com.sand.airdroidcast.tv",        // AirDroid Cast

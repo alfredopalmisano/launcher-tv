@@ -30,10 +30,27 @@ object Skyline {
         /** Fila media de la línea del horizonte. */
         val meanY: Int,
         /** Qué parte de la pantalla es cielo (0..1). Si es poca, no merece la pena el efecto. */
-        val skyFraction: Float
-    )
+        val skyFraction: Float,
+        /** Línea del horizonte: fila (px de la foto) por cada una de las COLUMNS columnas. */
+        val line: IntArray
+    ) {
+        /** Fracción (0..1) de un rectángulo de pantalla que queda tapada por el paisaje. */
+        fun coverage(left: Float, top: Float, right: Float, bottom: Float, screenW: Int, screenH: Int, photoW: Int, photoH: Int): Float {
+            var covered = 0f; var n = 0
+            val c0 = (left / screenW * COLUMNS).toInt().coerceIn(0, COLUMNS - 1)
+            val c1 = (right / screenW * COLUMNS).toInt().coerceIn(0, COLUMNS - 1)
+            for (c in c0..c1) {
+                val yScreen = line[c].toFloat() * screenH / photoH
+                covered += ((bottom - yScreen) / (bottom - top)).coerceIn(0f, 1f)
+                n++
+            }
+            return if (n == 0) 0f else covered / n
+        }
+    }
 
-    private const val W = 192
+    const val COLUMNS = 192
+
+    private const val W = COLUMNS
     private const val H = 108
 
     fun compute(photo: Bitmap): Result? {
@@ -48,6 +65,7 @@ object Skyline {
             val c = px[y * W + x]; sr += Color.red(c); sg += Color.green(c); sb += Color.blue(c); n++
         }
         sr /= n; sg /= n; sb /= n
+        if ((sr + sg + sb) / 3 < 70) return null   // arriba no hay cielo claro (noche, bosque…): sin efecto
 
         val line = IntArray(W)
         for (x in 0 until W) {
@@ -104,6 +122,6 @@ object Skyline {
         canvas.drawBitmap(mask, Rect(0, 0, W, H), Rect(0, 0, fw, fh), p)
         mask.recycle()
 
-        return Result(fg, topSmall * fh / H, meanSmall * fh / H, skyFraction)
+        return Result(fg, topSmall * fh / H, meanSmall * fh / H, skyFraction, IntArray(W) { smooth[it] * fh / H })
     }
 }

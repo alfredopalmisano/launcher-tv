@@ -45,6 +45,9 @@ sealed class Tile {
         override val label: String get() = "Dormir"
     }
 
+    /** Acceso directo genérico (Wi-Fi, Bluetooth…). */
+    data class Action(override val id: String, override val label: String, val iconRes: Int) : Tile()
+
     object AirPlay : Tile() {
         override val id: String get() = "airplay"
         override val label: String get() = "AirPlay"

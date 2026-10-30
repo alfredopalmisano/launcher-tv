@@ -55,17 +55,38 @@
         android:layout_height="match_parent"
         android:background="@drawable/scrim" />
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/dock"
+    <View
+        android:id="@+id/dim"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:layout_marginBottom="36dp"
-        android:paddingStart="52dp"
-        android:paddingEnd="52dp"
-        android:clipToPadding="false"
+        android:layout_height="match_parent"
+        android:background="#000000"
+        android:alpha="0" />
+
+    <ScrollView
+        android:id="@+id/rowsScroll"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scrollbars="none"
+        android:overScrollMode="never"
         android:clipChildren="false"
-        android:orientation="horizontal" />
+        android:clipToPadding="false"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:id="@+id/rows"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:paddingBottom="40dp">
+
+            <Space
+                android:id="@+id/topSpace"
+                android:layout_width="match_parent"
+                android:layout_height="400dp" />
+        </LinearLayout>
+    </ScrollView>
 
     <FrameLayout
         android:id="@+id/overlay"

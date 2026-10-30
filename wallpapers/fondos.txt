@@ -1,14 +1,21 @@
 # Fondos (licencia Unsplash, gratis). Formato: url | autor
-# Se descargan al compilar y van dentro del APK. Añade o quita líneas a tu gusto.
+# Fuente: unsplash.com/es/s/fotos/mountain-wallpaper (elegidas las de cumbres contra el cielo,
+# que es donde mejor funciona el reloj detrás de las montañas). Añade o quita líneas a tu gusto.
+https://images.unsplash.com/photo-1464822759023-fed622ff2c3b | Kalen Emsley
+https://images.unsplash.com/photo-1784570269737-21da4658a609 | Marek Piwnicki
+https://images.unsplash.com/photo-1508739773434-c26b3d09e071 | Cristina Gottardi
+https://images.unsplash.com/photo-1519681393784-d120267933ba | Benjamin Voros
+https://images.unsplash.com/photo-1485470733090-0aae1788d5af | Daniel Leone
+https://images.unsplash.com/photo-1554629947-334ff61d85dc | Mads Schmidt Rasmussen
+https://images.unsplash.com/photo-1782771116101-0320275aa1b2 | Alin Gavriliuc
+https://images.unsplash.com/photo-1483728642387-6c3bdd6c93e5 | Daniel Leone
+https://images.unsplash.com/photo-1480497490787-505ec076689f | Tim Stief
+https://images.unsplash.com/photo-1511300636408-a63a89df3482 | Luca Micheli
+https://images.unsplash.com/photo-1786513426338-f9de21c2315e | Abishigan Raguraam
+https://images.unsplash.com/photo-1771642248207-1b254c7fb073 | Intricate Explorer
+https://images.unsplash.com/photo-1477346611705-65d1883cee1e | John Towner
 https://images.unsplash.com/photo-1772089003128-2092ae0191bf | ki Zhang
 https://images.unsplash.com/photo-1768834605062-4eef74ce4683 | Alan Jiang
 https://images.unsplash.com/photo-1785920612317-495e344cec0f | Ilia Bronskiy
-https://images.unsplash.com/photo-1744619438365-19c55e108cb7 | Leon Rohrwild
-https://images.unsplash.com/photo-1737392402963-a489a17826eb | Carter Obasohan
 https://images.unsplash.com/photo-1764014588206-3c2647a34911 | Marek Piwnicki
 https://images.unsplash.com/photo-1547483238-fab280308b0d | Andrea Leopardi
-https://images.unsplash.com/photo-1724271364272-fb23971633f6 | Daniel Seßler
-https://images.unsplash.com/photo-1766512664657-987296ab5af2 | Marek Piwnicki
-https://images.unsplash.com/photo-1695731139711-d2e405b04386 | Marco Lamperti
-https://images.unsplash.com/photo-1742845918430-c6093f93f740 | Philipp
-https://images.unsplash.com/photo-1653663149141-0359c75e591a | R Gray

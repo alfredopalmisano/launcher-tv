@@ -29,8 +29,11 @@ class Wallpapers(
         fun views() = listOf(photo, fg)
     }
 
-    /** Se llama con cada foto nueva: la foto, y la línea del horizonte (o null si no hay cielo). */
-    var onPhotoChanged: ((Bitmap, Skyline.Result?) -> Unit)? = null
+    /**
+     * Se llama con cada foto nueva: la foto y la línea del horizonte (o null si no hay cielo).
+     * Devuelve true si hay que usar el primer plano (reloj detrás de las montañas).
+     */
+    var onPhotoChanged: ((Bitmap, Skyline.Result?) -> Boolean)? = null
 
     private val layers = listOf(Layer(photoA, fgA), Layer(photoB, fgB))
     private var current = 0
@@ -83,17 +86,18 @@ class Wallpapers(
         current = 1 - current
         val incoming = layers[current]
 
+        val useFg = sky != null && (onPhotoChanged?.invoke(bmp, sky) ?: true)
         incoming.photo.setImageBitmap(bmp)
-        incoming.fg.setImageBitmap(sky?.foreground)
+        incoming.fg.setImageBitmap(if (useFg) sky!!.foreground else null)
+        if (!useFg) sky?.foreground?.recycle()
         for (v in incoming.views()) { v.scaleX = 1f; v.scaleY = 1f; v.alpha = 0f }
 
         fade(incoming.photo, 1f, null)
-        fade(incoming.fg, 1f, null)
+        if (useFg) fade(incoming.fg, 1f, null)
         fade(outgoing.photo, 0f) { outgoing.photo.setImageDrawable(null) }
         fade(outgoing.fg, 0f) { outgoing.fg.setImageDrawable(null) }
         kenBurns(incoming)
-
-        onPhotoChanged?.invoke(bmp, sky)
+        if (sky == null) onPhotoChanged?.invoke(bmp, null)
         val author = credits[files[index]]
         credit.text = if (author != null) context.getString(R.string.credit, author) else ""
     }

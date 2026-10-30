@@ -25,4 +25,9 @@
     <string name="sleep_set">La tele se apagará en %1$d minutos</string>
     <string name="sleep_cancelled">Temporizador cancelado</string>
     <string name="sleep_no_admin">Falta un permiso: ejecuta paso5_dormir.sh en el Mac</string>
+    <string name="row_favorites">Favoritos</string>
+    <string name="row_recents">Recientes</string>
+    <string name="row_system">Conexiones y sistema</string>
+    <string name="wifi">Wi-Fi</string>
+    <string name="bluetooth">Bluetooth</string>
 </resources>
