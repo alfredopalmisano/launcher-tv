@@ -45,6 +45,15 @@ sealed class Tile {
         override val label: String get() = "Dormir"
     }
 
+    /** Contenido de "Continuar viendo" publicado por una app (Netflix, Prime, Disney+…). */
+    data class Program(
+        override val id: String,
+        override val label: String,
+        val posterUri: String?,
+        val intentUri: String?,
+        val packageName: String
+    ) : Tile()
+
     /** Acceso directo genérico (Wi-Fi, Bluetooth…). */
     data class Action(override val id: String, override val label: String, val iconRes: Int) : Tile()
 

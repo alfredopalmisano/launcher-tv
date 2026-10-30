@@ -51,7 +51,7 @@ class MainActivity : Activity() {
     private lateinit var favorites: Favorites
 
     private val dockAdapter = TileAdapter(DOCK_TILE_DP, false, ::open) { showAppMenu(it, fromDock = true) }
-    private val recentsAdapter = TileAdapter(ROW_TILE_DP, true, ::open) { showAppMenu(it, fromDock = false) }
+    private val recentsAdapter = TileAdapter(PROGRAM_TILE_DP, true, ::open) { false }
     private val systemAdapter = TileAdapter(ROW_TILE_DP, true, ::open) { false }
     private val gridAdapter = TileAdapter(GRID_TILE_DP, true, ::open) { showAppMenu(it, fromDock = false) }
 
@@ -291,10 +291,9 @@ class MainActivity : Activity() {
     }
 
     private fun refreshRows() {
-        val favs = favorites.get(apps).map { it.packageName }.toSet()
-        val recents = RecentsRepository.load(this, apps, favs)
-        recentsAdapter.submit(recents)
-        (recentsRow.parent as View).visibility = if (recents.isEmpty()) View.GONE else View.VISIBLE
+        val programs = WatchNextRepository.load(this)
+        recentsAdapter.submit(programs)
+        (recentsRow.parent as View).visibility = if (programs.isEmpty()) View.GONE else View.VISIBLE
 
         val sys = ArrayList<Tile>()
         sys.addAll(InputsRepository.loadConnected(this))
@@ -342,6 +341,13 @@ class MainActivity : Activity() {
             }
             Tile.AirPlay -> openAirPlay()
             Tile.SleepTile -> showSleepMenu()
+            is Tile.Program -> {
+                val i = try { tile.intentUri?.let { Intent.parseUri(it, Intent.URI_INTENT_SCHEME) } } catch (e: Exception) { null }
+                if (i == null || !tryStart(i)) {
+                    val app = packageManager.getLeanbackLaunchIntentForPackage(tile.packageName)
+                    if (app == null || !tryStart(app)) toast(getString(R.string.cannot_open, tile.label))
+                }
+            }
             is Tile.Action -> when (tile.id) {
                 "wifi" -> if (!tryStart(Intent(Settings.ACTION_WIFI_SETTINGS))) tryStart(Intent(Settings.ACTION_SETTINGS))
                 "bt" -> if (!tryStart(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))) tryStart(Intent(Settings.ACTION_SETTINGS))
@@ -493,6 +499,7 @@ class MainActivity : Activity() {
         private const val DOCK_TILE_DP = 196
         private const val GRID_TILE_DP = 144
         private const val ROW_TILE_DP = 150
+        private const val PROGRAM_TILE_DP = 200
         private const val IDLE_MS = 5 * 60_000L
         private const val TAG = "LauncherTV"
         private val AIRPLAY_RECEIVERS = listOf(

@@ -98,6 +98,12 @@ class TileAdapter(
                         icon.visibility = View.VISIBLE
                     }
                 }
+                is Tile.Program -> {
+                    icon.visibility = View.GONE
+                    banner.visibility = View.VISIBLE
+                    banner.setImageDrawable(null)
+                    if (tile.posterUri != null) Posters.load(itemView.context, tile.posterUri, banner, card.layoutParams.width)
+                }
                 is Tile.Input -> showIcon(tile.kind.iconRes)
                 Tile.AllApps -> showIcon(R.drawable.ic_apps)
                 Tile.Store -> showIcon(R.drawable.ic_store)
