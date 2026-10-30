@@ -1,10 +1,14 @@
 package com.alfredo.launchertv
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ObjectAnimator
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Handler
 import android.os.Looper
+import android.view.View
 import android.view.animation.LinearInterpolator
 import android.widget.ImageView
 import android.widget.TextView
@@ -65,14 +69,27 @@ class Wallpapers(
         val outgoing = if (showingA) viewA else viewB
         showingA = !showingA
 
+        incoming.animate().cancel()
+        outgoing.animate().cancel()
         incoming.setImageBitmap(bmp)
         incoming.scaleX = 1f
         incoming.scaleY = 1f
         incoming.alpha = 0f
-        incoming.animate().alpha(1f).setDuration(FADE_MS).start()
-        outgoing.animate().alpha(0f).setDuration(FADE_MS).withEndAction {
-            outgoing.setImageDrawable(null)
-        }.start()
+
+        // Fundido con ObjectAnimator (independiente del zoom, que usa animate()).
+        ObjectAnimator.ofFloat(incoming, View.ALPHA, 0f, 1f).apply {
+            duration = FADE_MS
+            start()
+        }
+        ObjectAnimator.ofFloat(outgoing, View.ALPHA, outgoing.alpha, 0f).apply {
+            duration = FADE_MS
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    if (outgoing !== (if (showingA) viewA else viewB)) outgoing.setImageDrawable(null)
+                }
+            })
+            start()
+        }
         kenBurns(incoming)
 
         val author = credits[files[index]]
@@ -80,7 +97,6 @@ class Wallpapers(
     }
 
     private fun kenBurns(view: ImageView) {
-        view.animate().cancel()
         view.animate().scaleX(1.07f).scaleY(1.07f)
             .setDuration(INTERVAL_MS + FADE_MS)
             .setInterpolator(LinearInterpolator())
