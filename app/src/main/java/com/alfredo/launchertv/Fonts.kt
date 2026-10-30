@@ -3,20 +3,23 @@ package com.alfredo.launchertv
 import android.content.Context
 import android.graphics.Typeface
 
-/** Tipografías: Inter (libre, muy parecida a la de Apple) si está en los assets; si no, la del sistema. */
+/**
+ * Tipografía: Nunito (libre, OFL), redondeada como la del reloj de bloqueo del iPhone.
+ * Es una fuente variable: el grosor se elige con el eje "wght". Si no está, se usa la del sistema.
+ */
 object Fonts {
-    fun thin(context: Context): Typeface = load(context, "fonts/Inter-ExtraLight.ttf")
-        ?: load(context, "fonts/Inter-Light.ttf")
-        ?: Typeface.create("sans-serif-thin", Typeface.NORMAL)
+    private const val NUNITO = "fonts/Nunito.ttf"
+    private val cache = HashMap<Int, Typeface>()
 
-    fun light(context: Context): Typeface = load(context, "fonts/Inter-Light.ttf")
-        ?: Typeface.create("sans-serif-light", Typeface.NORMAL)
+    fun clock(context: Context): Typeface = weight(context, 230) ?: Typeface.create("sans-serif-thin", Typeface.NORMAL)
+    fun light(context: Context): Typeface = weight(context, 320) ?: Typeface.create("sans-serif-light", Typeface.NORMAL)
+    fun medium(context: Context): Typeface = weight(context, 560) ?: Typeface.create("sans-serif-medium", Typeface.NORMAL)
 
-    fun medium(context: Context): Typeface = load(context, "fonts/Inter-Medium.ttf")
-        ?: Typeface.create("sans-serif-medium", Typeface.NORMAL)
-
-    private fun load(context: Context, path: String): Typeface? = try {
-        Typeface.createFromAsset(context.assets, path)
+    private fun weight(context: Context, wght: Int): Typeface? = cache[wght] ?: try {
+        Typeface.Builder(context.assets, NUNITO)
+            .setFontVariationSettings("'wght' $wght")
+            .build()
+            ?.also { cache[wght] = it }
     } catch (e: Exception) {
         null
     }

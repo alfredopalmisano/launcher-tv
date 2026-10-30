@@ -1,10 +1,14 @@
-# Fondos de naturaleza (licencia Unsplash). Formato: url | autor
-# Se descargan al compilar y se meten dentro del APK. Añade o quita líneas a tu gusto.
+# Fondos (licencia Unsplash, gratis). Formato: url | autor
+# Se descargan al compilar y van dentro del APK. Añade o quita líneas a tu gusto.
+https://images.unsplash.com/photo-1772089003128-2092ae0191bf | ki Zhang
+https://images.unsplash.com/photo-1768834605062-4eef74ce4683 | Alan Jiang
+https://images.unsplash.com/photo-1785920612317-495e344cec0f | Ilia Bronskiy
+https://images.unsplash.com/photo-1744619438365-19c55e108cb7 | Leon Rohrwild
+https://images.unsplash.com/photo-1737392402963-a489a17826eb | Carter Obasohan
+https://images.unsplash.com/photo-1764014588206-3c2647a34911 | Marek Piwnicki
+https://images.unsplash.com/photo-1547483238-fab280308b0d | Andrea Leopardi
+https://images.unsplash.com/photo-1724271364272-fb23971633f6 | Daniel Seßler
+https://images.unsplash.com/photo-1766512664657-987296ab5af2 | Marek Piwnicki
+https://images.unsplash.com/photo-1695731139711-d2e405b04386 | Marco Lamperti
 https://images.unsplash.com/photo-1742845918430-c6093f93f740 | Philipp
-https://images.unsplash.com/photo-1766009242938-ffea3cf8c178 | Márcio Quimbundo
-https://images.unsplash.com/photo-1723134090745-f6402a0c014d | Ed Wingate
 https://images.unsplash.com/photo-1653663149141-0359c75e591a | R Gray
-https://images.unsplash.com/photo-1770341989953-f3efb336f7eb | Intricate Explorer
-https://images.unsplash.com/photo-1779551363999-707505ab4102 | Bernd Dittrich
-https://images.unsplash.com/photo-1708457642893-9eafc31ca8a8 | Karthik Sreenivas
-https://images.unsplash.com/photo-1766221072212-cf2f9383221c | Aivars Vilks

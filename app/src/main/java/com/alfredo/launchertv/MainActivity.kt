@@ -1,6 +1,10 @@
 package com.alfredo.launchertv
 
 import android.app.Activity
+import android.app.AlertDialog
+import android.content.pm.ApplicationInfo
+import android.net.Uri
+import android.provider.Settings
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -10,6 +14,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import android.graphics.Bitmap
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.recyclerview.widget.GridLayoutManager
@@ -28,8 +34,8 @@ class MainActivity : Activity() {
     private lateinit var wallpapers: Wallpapers
     private lateinit var favorites: Favorites
 
-    private val dockAdapter = TileAdapter(::open, ::toggleFavorite)
-    private val gridAdapter = TileAdapter(::open, ::toggleFavorite)
+    private val dockAdapter = TileAdapter(DOCK_TILE_DP, ::open) { showAppMenu(it, fromDock = true) }
+    private val gridAdapter = TileAdapter(GRID_TILE_DP, ::open) { showAppMenu(it, fromDock = false) }
 
     private var apps: List<Tile.App> = emptyList()
     private val handler = Handler(Looper.getMainLooper())
@@ -65,19 +71,28 @@ class MainActivity : Activity() {
         favorites = Favorites(this)
 
         val dm = resources.displayMetrics
-        clock.typeface = Fonts.thin(this)
-        clock.textSizePx = 150f * dm.scaledDensity
+        clock.typeface = Fonts.clock(this)
+        clock.textSizePx = 190f * dm.scaledDensity
+        clock.glassAmount = 0.62f
         findViewById<TextView>(R.id.credit).typeface = Fonts.light(this)
         findViewById<TextView>(R.id.overlayTitle).typeface = Fonts.light(this)
 
         wallpapers = Wallpapers(this, findViewById(R.id.wallA), findViewById(R.id.wallB), findViewById(R.id.credit))
-        wallpapers.onPhotoChanged = { photo -> clock.setBackdrop(photo, dm.widthPixels, dm.heightPixels) }
+        val overlayBg = findViewById<ImageView>(R.id.overlayBg)
+        wallpapers.onPhotoChanged = { photo ->
+            clock.setBackdrop(photo, dm.widthPixels, dm.heightPixels)
+            // Fondo de la pantalla de apps: la misma foto muy difuminada.
+            val tiny = Bitmap.createScaledBitmap(photo, 32, 18, true)
+            overlayBg.setImageBitmap(Bitmap.createScaledBitmap(tiny, 320, 180, true))
+            tiny.recycle()
+        }
 
         dock.layoutManager = LinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
         dock.adapter = dockAdapter
         dock.itemAnimator = null
 
-        grid.layoutManager = GridLayoutManager(this, 6)
+        val gridWidthDp = dm.widthPixels / dm.density - 2 * 52
+        grid.layoutManager = GridLayoutManager(this, (gridWidthDp / (GRID_TILE_DP + 24)).toInt().coerceAtLeast(3))
         grid.adapter = gridAdapter
         grid.itemAnimator = null
 
@@ -136,14 +151,18 @@ class MainActivity : Activity() {
         refreshDock()
     }
 
-    private fun refreshDock() {
+    private fun refreshDock(focus: String? = null) {
         val hadFocus = dock.hasFocus()
         val tiles = ArrayList<Tile>()
         tiles.addAll(favorites.get(apps))
         tiles.addAll(InputsRepository.loadConnected(this))
+        tiles.add(Tile.Store)
         tiles.add(Tile.AllApps)
         dockAdapter.submit(tiles)
-        if (!hadFocus && overlay.visibility != View.VISIBLE) {
+        if (focus != null) {
+            val pos = dockAdapter.indexOf(focus)
+            if (pos >= 0) dock.post { dock.layoutManager?.findViewByPosition(pos)?.requestFocus() }
+        } else if (!hadFocus && overlay.visibility != View.VISIBLE) {
             dock.post { dock.getChildAt(0)?.requestFocus() }
         }
     }
@@ -162,6 +181,11 @@ class MainActivity : Activity() {
                 }
             }
             Tile.AllApps -> showAllApps()
+            Tile.Store -> {
+                val store = packageManager.getLeanbackLaunchIntentForPackage("com.android.vending")
+                    ?: packageManager.getLaunchIntentForPackage("com.android.vending")
+                if (store == null || !tryStart(store)) toast(getString(R.string.cannot_open, getString(R.string.store)))
+            }
         }
     }
 
@@ -172,11 +196,47 @@ class MainActivity : Activity() {
         false
     }
 
-    private fun toggleFavorite(tile: Tile): Boolean {
+    /** Menú al mantener pulsado OK sobre una app. */
+    private fun showAppMenu(tile: Tile, fromDock: Boolean): Boolean {
         if (tile !is Tile.App) return false
-        val added = favorites.toggle(tile.packageName)
-        toast(getString(if (added) R.string.added_to_dock else R.string.removed_from_dock, tile.label))
-        refreshDock()
+        val inDock = favorites.contains(tile.packageName)
+        val isSystem = try {
+            packageManager.getApplicationInfo(tile.packageName, 0).flags and ApplicationInfo.FLAG_SYSTEM != 0
+        } catch (e: Exception) { true }
+
+        val labels = ArrayList<String>()
+        val actions = ArrayList<() -> Unit>()
+        fun item(text: Int, action: () -> Unit) { labels.add(getString(text)); actions.add(action) }
+
+        if (inDock) {
+            item(R.string.menu_remove_dock) {
+                favorites.toggle(tile.packageName)
+                toast(getString(R.string.removed_from_dock, tile.label)); refreshDock()
+            }
+            if (fromDock) {
+                item(R.string.menu_move_left) { if (favorites.move(tile.packageName, -1)) refreshDock(focus = tile.id) }
+                item(R.string.menu_move_right) { if (favorites.move(tile.packageName, +1)) refreshDock(focus = tile.id) }
+            }
+        } else {
+            item(R.string.menu_add_dock) {
+                favorites.toggle(tile.packageName)
+                toast(getString(R.string.added_to_dock, tile.label)); refreshDock()
+            }
+        }
+        if (!isSystem) {
+            item(R.string.menu_uninstall) {
+                tryStart(Intent(Intent.ACTION_DELETE, Uri.parse("package:" + tile.packageName)))
+            }
+        }
+        item(R.string.menu_app_info) {
+            tryStart(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + tile.packageName)))
+        }
+        item(R.string.menu_cancel) { }
+
+        AlertDialog.Builder(this, R.style.Theme_Launcher_Dialog)
+            .setTitle(tile.label)
+            .setItems(labels.toTypedArray()) { _, which -> actions[which]() }
+            .show()
         return true
     }
 
@@ -192,6 +252,11 @@ class MainActivity : Activity() {
             overlay.visibility = View.GONE
             dock.post { dock.getChildAt(0)?.requestFocus() }
         }.start()
+    }
+
+    companion object {
+        private const val DOCK_TILE_DP = 176
+        private const val GRID_TILE_DP = 144
     }
 
     private fun toast(text: String) {

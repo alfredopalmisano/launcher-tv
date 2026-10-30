@@ -42,6 +42,18 @@ class Favorites(context: Context) {
         return added
     }
 
+    /** Mueve una app del dock una posición (delta -1 izquierda, +1 derecha). */
+    fun move(pkg: String, delta: Int): Boolean {
+        val list = current().toMutableList()
+        val i = list.indexOf(pkg)
+        val j = i + delta
+        if (i < 0 || j < 0 || j >= list.size) return false
+        list.removeAt(i)
+        list.add(j, pkg)
+        set(list)
+        return true
+    }
+
     private fun current(): List<String> =
         prefs.getString(KEY, "")!!.split('\n').filter { it.isNotBlank() }
 

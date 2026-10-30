@@ -29,6 +29,11 @@ sealed class Tile {
         override val id: String get() = "all"
         override val label: String get() = "Apps"
     }
+
+    object Store : Tile() {
+        override val id: String get() = "store"
+        override val label: String get() = "Tienda"
+    }
 }
 
 enum class DeviceKind(val iconRes: Int) {
