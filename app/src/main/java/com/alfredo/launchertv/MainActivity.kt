@@ -101,7 +101,7 @@ class MainActivity : Activity() {
         val dm = resources.displayMetrics
         clock.typeface = Fonts.clock(this)
         clock.textSizePx = 180f * dm.scaledDensity
-        clock.glassAmount = 0.72f
+        clock.glassAmount = 0.86f
         findViewById<TextView>(R.id.credit).typeface = Fonts.light(this)
         findViewById<TextView>(R.id.overlayTitle).typeface = Fonts.light(this)
 

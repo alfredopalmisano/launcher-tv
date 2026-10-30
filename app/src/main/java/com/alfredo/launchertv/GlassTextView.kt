@@ -122,7 +122,9 @@ class GlassTextView @JvmOverloads constructor(
         if (shader != null) {
             getLocationOnScreen(screenPos)
             shaderMatrix.reset()
-            shaderMatrix.postTranslate(-screenPos[0].toFloat(), -screenPos[1].toFloat())
+            // Refracción: el fondo se ve a través del cristal ligeramente desplazado y ampliado.
+            shaderMatrix.postScale(1.03f, 1.03f, (width / 2f), (height / 2f))
+            shaderMatrix.postTranslate(-screenPos[0].toFloat(), -screenPos[1].toFloat() + 6f)
             shader.setLocalMatrix(shaderMatrix)
             fill.shader = shader
             fill.colorFilter = LIGHTEN   // cristal esmerilado claro siempre, como el iPhone
@@ -169,11 +171,11 @@ class GlassTextView @JvmOverloads constructor(
 
         /** Aclara y desatura un poco el fondo para que parezca cristal esmerilado. */
         private val LIGHTEN = ColorMatrixColorFilter(ColorMatrix().apply {
-            setSaturation(0.8f)
+            setSaturation(1.05f)   // deja pasar el color del cielo
             postConcat(ColorMatrix(floatArrayOf(
-                0.75f, 0f, 0f, 0f, 70f,
-                0f, 0.75f, 0f, 0f, 70f,
-                0f, 0f, 0.75f, 0f, 70f,
+                0.92f, 0f, 0f, 0f, 28f,
+                0f, 0.92f, 0f, 0f, 28f,
+                0f, 0f, 0.92f, 0f, 28f,
                 0f, 0f, 0f, 1f, 0f
             )))
         })
