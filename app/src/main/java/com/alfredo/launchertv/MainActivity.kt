@@ -326,6 +326,7 @@ class MainActivity : Activity() {
         sys.add(Tile.Action("wifi", getString(R.string.wifi), R.drawable.ic_wifi))
         sys.add(Tile.Action("bt", getString(R.string.bluetooth), R.drawable.ic_bluetooth))
         sys.add(Tile.SleepTile)
+        sys.add(Tile.Action("reboot", getString(R.string.reboot), R.drawable.ic_restart))
         sys.add(Tile.Store)
         sys.add(Tile.SettingsTile)
         systemAdapter.submit(sys)
@@ -375,6 +376,11 @@ class MainActivity : Activity() {
             is Tile.Action -> when (tile.id) {
                 "wifi" -> if (!tryStart(Intent(Settings.ACTION_WIFI_SETTINGS))) tryStart(Intent(Settings.ACTION_SETTINGS))
                 "bt" -> if (!tryStart(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))) tryStart(Intent(Settings.ACTION_SETTINGS))
+                "reboot" -> AlertDialog.Builder(this, R.style.Theme_Launcher_Dialog)
+                    .setTitle(R.string.reboot_title)
+                    .setItems(arrayOf(getString(R.string.reboot), getString(R.string.menu_cancel))) { _, which ->
+                        if (which == 0) Thread { if (TvAdb.reboot(this) == null) runOnUiThread { toast(getString(R.string.sleep_no_admin)) } }.start()
+                    }.show()
             }
             Tile.Store -> {
                 val store = packageManager.getLeanbackLaunchIntentForPackage("com.android.vending")
@@ -409,9 +415,12 @@ class MainActivity : Activity() {
 
     /** Temporizador de apagado (tile Dormir). */
     private fun showSleepMenu() {
-        val admin = Sleep.isAdmin(this)
-        android.util.Log.i(TAG, "Dormir: admin activo=$admin, admins=${Sleep.activeAdmins(this)}")
-        if (!admin) { toast(getString(R.string.sleep_no_admin)) }
+        // Comprobar en segundo plano si la tele acepta órdenes (ADB interno); si no, pedir el permiso.
+        Thread {
+            val ok = TvAdb.available(this)
+            android.util.Log.i(TAG, "Dormir: adb interno=$ok, admin=${Sleep.isAdmin(this)}")
+            if (!ok && !Sleep.isAdmin(this)) runOnUiThread { toast(getString(R.string.sleep_no_admin)); TvAdb.requestPermission(this) }
+        }.start()
         val remaining = Sleep.remainingMinutes(this)
         val options = listOf(15, 30, 45, 60, 90, 120)
         val labels = ArrayList<String>()
@@ -420,7 +429,9 @@ class MainActivity : Activity() {
             labels.add(getString(R.string.sleep_cancel_timer, remaining))
             actions.add { Sleep.cancel(this); toast(getString(R.string.sleep_cancelled)) }
         }
-        labels.add(getString(R.string.sleep_now)); actions.add { if (!Sleep.sleepNow(this)) toast(getString(R.string.sleep_no_admin)) }
+        labels.add(getString(R.string.sleep_now)); actions.add {
+            Thread { if (!Sleep.sleepNow(this)) runOnUiThread { toast(getString(R.string.sleep_no_admin)) } }.start()
+        }
         for (m in options) {
             labels.add(getString(R.string.sleep_minutes, m))
             actions.add { Sleep.schedule(this, m); toast(getString(R.string.sleep_set, m)) }
@@ -514,6 +525,7 @@ class MainActivity : Activity() {
         private const val IDLE_MS = 5 * 60_000L
         private const val TAG = "LauncherTV"
         private val AIRPLAY_RECEIVERS = listOf(
+            "io.github.jqssun.airplay",        // AirPlay Server (código abierto, UxPlay) — paso6_airplay.sh
             "com.ionitech.airscreen",          // AirScreen
             "com.sand.airdroidcast.tv",        // AirDroid Cast
             "com.airbeamtv.receiver"           // AirBeamTV

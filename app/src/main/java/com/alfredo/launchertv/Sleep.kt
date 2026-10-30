@@ -19,7 +19,10 @@ class SleepAdminReceiver : DeviceAdminReceiver()
 
 class SleepReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        Sleep.sleepNow(context)
+        val pending = goAsync()
+        Thread {
+            try { Sleep.sleepNow(context.applicationContext) } finally { pending.finish() }
+        }.start()
     }
 }
 
@@ -38,8 +41,13 @@ object Sleep {
         return dpm.activeAdmins?.joinToString { it.flattenToShortString() } ?: "ninguno"
     }
 
+    /**
+     * Pone la tele en reposo. Primero por ADB interno (la vía que funciona en esta Xiaomi);
+     * si no está autorizado, intenta el administrador de dispositivo. Llamar desde un hilo secundario.
+     */
     fun sleepNow(context: Context): Boolean {
         clear(context)
+        if (TvAdb.sleep(context)) return true
         val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
         return try {
             if (!dpm.isAdminActive(admin(context))) return false

@@ -17,17 +17,19 @@
     <string name="menu_uninstall">Desinstalar</string>
     <string name="menu_app_info">Información de la app</string>
     <string name="menu_cancel">Cancelar</string>
-    <string name="airplay_install">Para recibir la pantalla del iPhone o del Mac hace falta instalar AirScreen. Abriendo la tienda…</string>
+    <string name="airplay_install">Falta el receptor AirPlay: ejecuta paso6_airplay.sh en el Mac</string>
     <string name="sleep_title">Apagar la tele en…</string>
     <string name="sleep_now">Ahora</string>
     <string name="sleep_minutes">%1$d minutos</string>
     <string name="sleep_cancel_timer">Cancelar temporizador (quedan %1$d min)</string>
     <string name="sleep_set">La tele se apagará en %1$d minutos</string>
     <string name="sleep_cancelled">Temporizador cancelado</string>
-    <string name="sleep_no_admin">Falta un permiso: ejecuta paso5_dormir.sh en el Mac</string>
+    <string name="sleep_no_admin">Permiso pendiente: si la tele pregunta "¿Permitir depuración USB?", marca "Permitir siempre"</string>
     <string name="row_favorites">Favoritos</string>
     <string name="row_recents">Continuar viendo</string>
     <string name="row_system">Conexiones y sistema</string>
     <string name="wifi">Wi-Fi</string>
     <string name="bluetooth">Bluetooth</string>
+    <string name="reboot">Reiniciar</string>
+    <string name="reboot_title">¿Reiniciar la tele?</string>
 </resources>
