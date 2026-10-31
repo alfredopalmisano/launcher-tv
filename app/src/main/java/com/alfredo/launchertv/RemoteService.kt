@@ -58,7 +58,9 @@ class RemoteService : Service() {
         TvAdb.startInjector(this)
         // Al encender la tele (después de que el temporizador la apagara): brillo normal otra vez.
         registerReceiver(screenOn, android.content.IntentFilter(Intent.ACTION_SCREEN_ON))
-        Night.restoreIfExpired(this)   // dejar listo el inyector: la primera tecla ya va rápida
+        Night.restoreIfExpired(this)
+        // Sin salvapantallas pero sin apagarse a los 5 min dentro de las apps: 60 min sin tocar nada.
+        Thread { Power.ensureTimeouts(this) }.start()   // dejar listo el inyector: la primera tecla ya va rápida
         startServer()
     }
 

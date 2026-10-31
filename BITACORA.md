@@ -139,10 +139,13 @@ Repositorio `launcher-tv`, Kotlin, `minSdk 28`, `targetSdk 28`. Paquete `com.alf
 | 0.44 | Efecto 3D al enfocar (inclinación 7° + rebote), clic sintetizado, zoom lento de fotos a 5 actualizaciones/s, Atrás: filas → dock → imágenes; imágenes solo se salen con ↓ |
 | 0.45 | **Analizado con grabaciones de pantalla** (`grabar_animaciones.sh`): reflejo sin bordes (`ShineDrawable`), icono de extremo sin cortar, apertura de apps con el icono creciendo y fundiendo a negro; **modo noche** (`Night.kt`): con temporizador de Dormir `picture_backlight`=10 y fotos 38 % más oscuras, al quitarlo vuelve al brillo anterior; clic al 15 % |
 | 0.46 | La capa negra de la apertura ya no puede quedarse encima al volver |
+| 0.47 | La tarjeta Apps va la primera del dock |
+| 0.48 | **La tele se apagaba a los 5 min dentro del menú de una app** (SkyShowtime): sin salvapantallas, Android apaga la pantalla al llegar a `screen_off_timeout` (~5 min). El launcher (`Power.kt`, al arrancar el servicio) lo sube a 60 min con el ADB interno si está por debajo. `paso5_dormir.sh` también lo pone (copia nueva pendiente de pasar al Mac) |
 
 ---
 
 ## 4. Pendiente / ideas acordadas
+- **1-nov**: instalar la 0.48 (paso3) y comprobar `settings get system screen_off_timeout` = 3600000. Copiar el `paso5_dormir.sh` actualizado a la carpeta del Mac cuando la tele/Mac vuelvan a estar enlazados.
 - **31-oct mañana**: Alfredo nota "todo en la tele mucho más rápido" tras quitar los redibujos continuos. Antes de tocar algo que no ha pedido, **preguntarle**.
 - **Carabobo FC**: falta el vídeo del reel (grabación de pantalla del iPhone) y saber qué envía el botón Mi (`boton_mi.sh` salió vacío). Fotos en `~/Desktop/LauncherTV/carabobo/fotos` (no van al repo: es público).
 - Herramientas nuevas: `medir_fluidez.sh`, `medir_piezas.sh` (interruptores por adb, se reinician solos), `grabar_animaciones.sh` (screenrecord), `buscar_brillo.sh`, `rescate.sh`.
