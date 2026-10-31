@@ -65,6 +65,16 @@ class GlassTextView @JvmOverloads constructor(
     private var oldShader: BitmapShader? = null
     private var oldZoom = 1f
     private var fadeStart = 0L
+    // Máscara de la montaña de la foto actual y de la anterior: el reloj se borra donde hay montaña.
+    private var maskBitmap: Bitmap? = null
+    private var maskShader: BitmapShader? = null
+    private var oldMaskBitmap: Bitmap? = null
+    private var oldMaskShader: BitmapShader? = null
+    private val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
+    }
+    private val mixPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private val ADD = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.ADD)
     private val shaderMatrix = Matrix()
     private val screenPos = IntArray(2)
 
@@ -100,10 +110,14 @@ class GlassTextView @JvmOverloads constructor(
      * Fondo nuevo para "ver a través" de las letras: [glass] es la foto a 1/4 de resolución
      * (preparada en segundo plano con [prepareGlass]). El anterior se funde con este en FADE_MS.
      */
-    fun setBackdrop(glass: Bitmap?, bright: Boolean, screenW: Int, screenH: Int) {
+    fun setBackdrop(glass: Bitmap?, mask: Bitmap?, bright: Boolean, screenW: Int, screenH: Int) {
         this.screenW = screenW; this.screenH = screenH
         oldBitmap?.recycle()
         oldBitmap = glassBitmap; oldShader = glassShader; oldZoom = zoom
+        oldMaskBitmap?.recycle()
+        oldMaskBitmap = maskBitmap; oldMaskShader = maskShader
+        maskBitmap = mask
+        maskShader = mask?.let { BitmapShader(it, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP) }
         fadeStart = if (oldShader != null) android.os.SystemClock.uptimeMillis() else 0L
         zoom = 1f
         onBright = bright
@@ -122,9 +136,7 @@ class GlassTextView @JvmOverloads constructor(
         shaderMatrix.postScale(z, z, screenW / 2f, screenH / 2f)
         // Pasar de coordenadas de pantalla a coordenadas de esta vista (donde esté ahora mismo).
         shaderMatrix.postTranslate(-screenPos[0].toFloat(), -screenPos[1].toFloat())
-        // Refracción: el fondo se ve a través del cristal ligeramente ampliado y bajado.
-        shaderMatrix.postScale(1.025f, 1.025f, width / 2f, height / 2f)
-        shaderMatrix.postTranslate(0f, 8f)
+        // Sin "refracción": cada píxel del cristal muestra exactamente lo que tiene detrás.
         shader.setLocalMatrix(shaderMatrix)
         return shader
     }
@@ -156,6 +168,12 @@ class GlassTextView @JvmOverloads constructor(
         val fm = fill.fontMetrics
         val x = width / 2f
         val y = height / 2f - (fm.ascent + fm.descent) / 2f
+        getLocationOnScreen(screenPos)
+        // Progreso del cambio de foto (misma curva que el fundido de la foto); 1 = sin cambio.
+        val e = if (fadeStart > 0L) fadeCurve((android.os.SystemClock.uptimeMillis() - fadeStart) / FADE_MS.toFloat()) else 1f
+        // Con montaña delante, el reloj se dibuja en una capa aparte para poder borrarle esa zona.
+        val masked = maskShader != null || (oldMaskShader != null && e < 1f)
+        val layer = if (masked) canvas.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null) else -1
 
         // 1) Sombra suave.
         drawTabular(canvas, shadow, x, y)
@@ -163,7 +181,6 @@ class GlassTextView @JvmOverloads constructor(
         // 2) Relleno: fondo difuminado y aclarado, alineado con lo que hay detrás.
         val shader = glassShader
         if (shader != null) {
-            getLocationOnScreen(screenPos)
             fill.colorFilter = LIGHTEN   // cristal esmerilado claro siempre, como el iPhone
             fill.alpha = 255
             fill.shader = align(shader, glassBitmap, zoom)
@@ -207,6 +224,39 @@ class GlassTextView @JvmOverloads constructor(
         // sobre cielos muy claros el borde se oscurece un poco para que las cifras no se fundan
         edge.color = if (onBright) 0x55303A48 else 0x66FFFFFF
         drawTabular(canvas, edge, x, y)
+
+        // 5) Profundidad: borrar el reloj (y su sombra) donde la montaña queda por delante.
+        //    Es lo mismo que pintar la montaña encima (es la propia foto), pero sin capas extra.
+        if (masked) {
+            val w = width.toFloat(); val h = height.toFloat()
+            val om = oldMaskShader?.takeIf { e < 1f }
+            val m = maskShader
+            if (om != null && m != null) {
+                // Cambio de foto: máscara mezclada = nueva·e + vieja·(1−e) (suma exacta con ADD),
+                // y se borra una sola vez. Así el reloj no se transparenta donde hay montaña en ambas.
+                val ml = canvas.saveLayer(0f, 0f, w, h, maskPaint)
+                mixPaint.xfermode = null
+                mixPaint.shader = align(m, maskBitmap, zoom); mixPaint.alpha = (255 * e).toInt()
+                canvas.drawRect(0f, 0f, w, h, mixPaint)
+                mixPaint.xfermode = ADD
+                mixPaint.shader = align(om, oldMaskBitmap, oldZoom); mixPaint.alpha = (255 * (1f - e)).toInt()
+                canvas.drawRect(0f, 0f, w, h, mixPaint)
+                canvas.restoreToCount(ml)
+            } else if (m != null) {
+                maskPaint.shader = align(m, maskBitmap, zoom)
+                maskPaint.alpha = (255 * e).toInt()
+                canvas.drawRect(0f, 0f, w, h, maskPaint)
+                maskPaint.shader = null; maskPaint.alpha = 255
+            } else if (om != null) {
+                maskPaint.shader = align(om, oldMaskBitmap, oldZoom)
+                maskPaint.alpha = (255 * (1f - e)).toInt()
+                canvas.drawRect(0f, 0f, w, h, maskPaint)
+                maskPaint.shader = null; maskPaint.alpha = 255
+            }
+            canvas.restoreToCount(layer)
+        }
+        if (e >= 1f && oldMaskShader != null) { oldMaskShader = null; oldMaskBitmap?.recycle(); oldMaskBitmap = null }
+        if (e < 1f) postInvalidateOnAnimation()
     }
 
     companion object {
@@ -217,13 +267,13 @@ class GlassTextView @JvmOverloads constructor(
         fun fadeCurve(t: Float): Float = (Math.cos((t.coerceIn(0f, 1f) + 1) * Math.PI) / 2.0 + 0.5).toFloat()
 
         /**
-         * Prepara el cristal de una foto (en cualquier hilo): la foto a 1/4 de resolución, que
-         * la gráfica amplía suavizada (= el mismo difuminado de antes), y si el cielo de la
-         * zona del reloj es claro.
+         * Prepara el cristal de una foto (en cualquier hilo): la foto a 1/2 de resolución, que
+         * la gráfica amplía suavizada (detalle casi exacto, apenas suavizado como un cristal),
+         * y si el cielo de la zona del reloj es claro.
          */
         fun prepareGlass(photo: Bitmap, screenW: Int, screenH: Int): Pair<Bitmap, Boolean> {
             val argb = photo.copy(Bitmap.Config.ARGB_8888, false)
-            val small = Bitmap.createScaledBitmap(argb, (screenW / 4).coerceAtLeast(1), (screenH / 4).coerceAtLeast(1), true)
+            val small = Bitmap.createScaledBitmap(argb, (screenW / 2).coerceAtLeast(1), (screenH / 2).coerceAtLeast(1), true)
             if (small !== argb) argb.recycle()
             // Luminosidad media de la franja donde suele ir el reloj (centro, parte alta).
             var lum = 0L; var n = 0

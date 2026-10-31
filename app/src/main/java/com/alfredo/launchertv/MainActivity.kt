@@ -88,6 +88,9 @@ class MainActivity : Activity() {
         setContentView(R.layout.activity_main)
         // Sin salvapantallas mientras se ve el launcher.
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // La foto de fondo tapa toda la pantalla: el fondo negro de la ventana sobra (cada capa
+        // de pantalla completa cuesta en una gráfica modesta).
+        window.setBackgroundDrawable(null)
 
         clock = findViewById(R.id.clock)
         overlay = findViewById(R.id.overlay)
@@ -119,7 +122,7 @@ class MainActivity : Activity() {
         wallpapers.onZoom = { z -> clock.setZoom(z) }
         wallpapers.onPhotoChanged = { p ->
             // Todo llega ya preparado: aquí solo se asigna y arrancan las animaciones.
-            clock.setBackdrop(p.glass, p.bright, dm.widthPixels, dm.heightPixels)
+            clock.setBackdrop(p.glass, p.mask, p.bright, dm.widthPixels, dm.heightPixels)
             placeClock(clockBox, p.plan, dm.heightPixels, p.photo.height)
             // Fondo de la pantalla de apps: la misma foto muy difuminada.
             overlayBg.setImageBitmap(p.blurred)

@@ -216,7 +216,7 @@ def preview(img, mask, p, font, out_path, bright):
     shadow.putalpha(sh)
     comp = Image.alpha_composite(base, shadow)
     # relleno de cristal: fondo muy difuminado
-    glass = img.resize((W // 4, H // 4), Image.BILINEAR).resize((W, H), Image.BILINEAR).convert("RGB")
+    glass = img.resize((W // 2, H // 2), Image.BILINEAR).resize((W, H), Image.BILINEAR).convert("RGB")
     g = np.asarray(glass).astype(np.float32) + 14
     veil = np.array([255, 255, 255], dtype=np.float32); veil_a = 0.08
     g = g * (1 - veil_a) + veil * veil_a
@@ -282,6 +282,12 @@ def main():
             p["useFg"] = False
             p["coverage"] = 0.0
             p["digitTop"] = int(min(48 * 2, DOCK_TOP - p["digitH"]))
+        # Sin montaña por delante, el reloj NUNCA puede pisar la cumbre (quedaría encima de la
+        # roca): subirlo hasta dejar un margen limpio sobre el punto más alto bajo el reloj.
+        if not p["useFg"] and p.get("peakY") is not None:
+            clear = 20
+            if p["digitTop"] + p["digitH"] + clear > p["peakY"]:
+                p["digitTop"] = int(max(MIN_TOP, p["peakY"] - p["digitH"] - clear))
         # ¿cielo claro detrás del reloj? (para el cristal ahumado)
         band = np.asarray(img.resize((48, 27)).convert("L"))[2:14, 12:36]
         bright = float(band.mean()) > 150

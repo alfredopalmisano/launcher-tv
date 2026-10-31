@@ -34,7 +34,8 @@ class Wallpapers(
         val index: Int,
         val photo: Bitmap,
         val plan: Layouts.Entry?,
-        val fg: Bitmap?,
+        /** Máscara de la montaña: el reloj se recorta con ella (efecto de profundidad). */
+        val mask: Bitmap?,
         /** Foto a 1/4 de resolución para el cristal del reloj. */
         val glass: Bitmap,
         /** ¿Cielo claro en la zona del reloj? */
@@ -106,25 +107,21 @@ class Wallpapers(
         index = nextIndex
         val bmp = p.photo
         val plan = p.plan
-        val fgBitmap = p.fg
-        android.util.Log.i("LauncherTV", "fondo ${files[index]} plan=${plan != null} fg=${fgBitmap != null} top=${plan?.digitTop}")
+        android.util.Log.i("LauncherTV", "fondo ${files[index]} plan=${plan != null} mascara=${p.mask != null} top=${plan?.digitTop}")
 
         // 1) Lo que se ve ahora pasa, tal cual (mismo zoom), a la capa de abajo: no cambia nada en pantalla.
         zoom?.cancel()
         fadeAnims.forEach { it.cancel() }; fadeAnims.clear()
         val s = top.photo.scaleX
         bottom.photo.setImageDrawable(top.photo.drawable)
-        bottom.fg.setImageDrawable(top.fg.drawable)
-        for (v in bottom.views()) { v.scaleX = s; v.scaleY = s }
+        bottom.photo.scaleX = s; bottom.photo.scaleY = s
         bottom.photo.alpha = 1f
-        bottom.fg.alpha = top.fg.alpha
-        // 2) La foto nueva entra arriba desde transparente; la montaña vieja se va a la vez.
+        // 2) La foto nueva entra arriba desde transparente. (La montaña ya no es una capa aparte:
+        //    el reloj se recorta con su máscara, así el fundido de las fotos es exacto y la
+        //    gráfica pinta dos pantallas completas menos en cada fotograma.)
         top.photo.setImageBitmap(bmp)
-        top.fg.setImageBitmap(fgBitmap)
-        for (v in top.views()) { v.scaleX = 1f; v.scaleY = 1f; v.alpha = 0f }
+        top.photo.scaleX = 1f; top.photo.scaleY = 1f; top.photo.alpha = 0f
         fade(top.photo, 1f) { bottom.photo.setImageDrawable(null) }
-        if (fgBitmap != null) fade(top.fg, 1f, null)
-        fade(bottom.fg, 0f) { bottom.fg.setImageDrawable(null) }
         kenBurns(top)
         onPhotoChanged?.invoke(p)
         val author = credits[files[index]]
@@ -144,7 +141,7 @@ class Wallpapers(
                     preparing = -1
                     if (p != null) {
                         // Subir ya las imágenes a la gráfica, para que el primer fotograma no tarde.
-                        p.photo.prepareToDraw(); p.fg?.prepareToDraw()
+                        p.photo.prepareToDraw()
                         ready = p
                     }
                 }
@@ -157,13 +154,13 @@ class Wallpapers(
         val name = files[i]
         val bmp = decode(name) ?: return null
         val plan = layouts[name]
-        val fg = if (plan?.useFg == true) layouts.foreground(name, bmp) else null
+        val mask = if (plan?.useFg == true) layouts.mask(name) else null
         val dm = context.resources.displayMetrics
         val (glass, bright) = GlassTextView.prepareGlass(bmp, dm.widthPixels, dm.heightPixels)
         val tiny = Bitmap.createScaledBitmap(bmp, 32, 18, true)
         val blurred = Bitmap.createScaledBitmap(tiny, 320, 180, true)
         tiny.recycle()
-        return Prepared(i, bmp, plan, fg, glass, plan?.bright ?: bright, blurred)
+        return Prepared(i, bmp, plan, mask, glass, plan?.bright ?: bright, blurred)
     }
 
     private val fadeAnims = ArrayList<ObjectAnimator>()
@@ -181,19 +178,15 @@ class Wallpapers(
         }
     }
 
-    /** Zoom lento aplicado a la vez a la foto y al primer plano, para que sigan alineados. */
+    /**
+     * Antes había un zoom lento continuo (Ken Burns). Se quitó: obligaba a redibujar la
+     * pantalla entera 60 veces por segundo y la tele no llegaba (medido: ~38 fps en reposo).
+     * Ahora, sin cambio de foto, la tele no tiene que redibujar nada.
+     */
     private fun kenBurns(layer: Layer) {
         zoom?.cancel()
-        zoom = ValueAnimator.ofFloat(1f, 1.07f).apply {
-            duration = INTERVAL_MS + FADE_MS
-            interpolator = LinearInterpolator()
-            addUpdateListener { a ->
-                val s = a.animatedValue as Float
-                for (v in layer.views()) { v.scaleX = s; v.scaleY = s }
-                onZoom?.invoke(s)
-            }
-            start()
-        }
+        layer.photo.scaleX = 1f; layer.photo.scaleY = 1f
+        onZoom?.invoke(1f)
     }
 
     private fun decode(name: String): Bitmap? = try {

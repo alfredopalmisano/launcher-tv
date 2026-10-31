@@ -32,6 +32,26 @@ class Layouts(private val context: Context) {
 
     operator fun get(file: String): Entry? = entries[file]
 
+    /**
+     * Máscara de la montaña (alfa = montaña), tal cual se calculó al compilar; null si no hay.
+     * El reloj la usa para recortarse donde la montaña queda por delante.
+     */
+    fun mask(file: String): Bitmap? {
+        val maskName = "wallpapers/" + file.replace(".jpg", ".mask.png")
+        val mask = try { context.assets.open(maskName).use { BitmapFactory.decodeStream(it) } } catch (e: Exception) { null } ?: return null
+        if (mask.hasAlpha()) return mask
+        // Máscara en gris sin alfa: pasar el gris al canal alfa.
+        val withAlpha = Bitmap.createBitmap(mask.width, mask.height, Bitmap.Config.ARGB_8888)
+        val cm = android.graphics.ColorMatrix(floatArrayOf(
+            0f, 0f, 0f, 0f, 255f,
+            0f, 0f, 0f, 0f, 255f,
+            0f, 0f, 0f, 0f, 255f,
+            0.299f, 0.587f, 0.114f, 0f, 0f))
+        Canvas(withAlpha).drawBitmap(mask, 0f, 0f, Paint().apply { colorFilter = android.graphics.ColorMatrixColorFilter(cm) })
+        mask.recycle()
+        return withAlpha
+    }
+
     /** Primer plano (montaña) = foto recortada con la máscara precalculada; null si no hay. */
     fun foreground(file: String, photo: Bitmap): Bitmap? {
         val maskName = "wallpapers/" + file.replace(".jpg", ".mask.png")
