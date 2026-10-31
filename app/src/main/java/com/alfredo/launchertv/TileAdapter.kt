@@ -93,10 +93,14 @@ class TileAdapter(
         private val shine: View = view.findViewById(R.id.shine)
         private val focusDrawable = view.context.getDrawable(R.drawable.tile_focus)
         private val movingDrawable = view.context.getDrawable(R.drawable.tile_moving)
+        private val shineDrawable = ShineDrawable()
+        private var shineAnim: android.animation.ValueAnimator? = null
         private val white = ColorStateList.valueOf(0xFFFFFFFF.toInt())
 
         init {
             card.clipToOutline = true
+            shine.background = shineDrawable
+            shine.alpha = 1f
             // Cámara lejos: la inclinación 3D se ve sutil, sin deformar la tarjeta.
             card.cameraDistance = 9000f * view.resources.displayMetrics.density
             label.typeface = Fonts.medium(view.context)
@@ -108,6 +112,7 @@ class TileAdapter(
                     .withEndAction { card.animate().scaleX(1.12f).scaleY(1.12f).setDuration(160).start() }
                     .start()
                 itemAt(bindingAdapterPosition)?.let(onClick)
+                lastClicked = null   // solo vale para la app que se abre con esta pulsación
             }
             view.setOnLongClickListener { itemAt(bindingAdapterPosition)?.let(onLongClick) ?: false }
             view.setOnFocusChangeListener { _, focused ->
@@ -125,29 +130,25 @@ class TileAdapter(
                     .setDuration(if (focused) 420 else 200)
                     .setInterpolator(if (focused) android.view.animation.OvershootInterpolator(1.4f) else android.view.animation.DecelerateInterpolator())
                     .start()
-                // Luz que barre el cristal al enfocar y se queda como reflejo suave.
-                shine.animate().cancel()
-                if (focused && (sweep == Sweep.UP || sweep == Sweep.DOWN)) {
-                    // Al cambiar de fila no hay barrido: solo aparece el reflejo glossy.
-                    shine.translationX = 0f; shine.translationY = 0f
-                    shine.alpha = 0f
-                    shine.animate().alpha(0.35f).setDuration(220).start()
-                } else if (focused) {
-                    // El brillo barre en la dirección en la que te mueves (← →).
-                    val w = card.width.toFloat()
-                    val fromX = if (sweep == Sweep.LEFT) w else -w
-                    shine.translationX = fromX
-                    shine.translationY = 0f
-                    shine.alpha = 0.95f
-                    shine.animate().translationX(-fromX).translationY(0f).setDuration(520)
-                        .setInterpolator(android.view.animation.DecelerateInterpolator())
-                        .withEndAction {
-                            shine.translationX = 0f; shine.alpha = 0f
-                            shine.animate().alpha(0.35f).setDuration(250).start()
+                // Reflejo de luz suave que cruza la tarjeta en la dirección del movimiento (← →).
+                // Al cambiar de fila (↑ ↓) no hay barrido: la tarjeta ya tiene su brillo glossy fijo.
+                shineAnim?.cancel()
+                if (focused && (sweep == Sweep.LEFT || sweep == Sweep.RIGHT)) {
+                    val fromLeft = sweep == Sweep.RIGHT
+                    shineAnim = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                        duration = 700
+                        startDelay = 60
+                        interpolator = android.view.animation.PathInterpolator(0.35f, 0f, 0.25f, 1f)
+                        addUpdateListener { a ->
+                            val p = a.animatedValue as Float
+                            shineDrawable.progress = if (fromLeft) p else 1f - p
+                            // aparece y se apaga suavemente (sin cortes al empezar o acabar)
+                            shineDrawable.strength = kotlin.math.sin(p * Math.PI).toFloat()
                         }
-                        .start()
+                        start()
+                    }
                 } else {
-                    shine.animate().alpha(0f).setDuration(150).start()
+                    shineDrawable.progress = -1f
                 }
                 if (showLabels) label.animate().alpha(if (focused) 1f else 0f).translationY(if (focused) 0f else -6f).setDuration(180).start()
                 val tile = itemAt(bindingAdapterPosition)

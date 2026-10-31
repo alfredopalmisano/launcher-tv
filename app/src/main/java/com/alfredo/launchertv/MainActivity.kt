@@ -192,6 +192,7 @@ class MainActivity : Activity() {
 
         hideSystemUi()
         setupSounds()
+        Night.onChange = { applyNight(it) }
         reload()
     }
 
@@ -208,7 +209,10 @@ class MainActivity : Activity() {
             addDataScheme("package")
         })
         InputsRepository.manager(this)?.registerCallback(inputCallback, handler)
+        hideLaunchZoom(animate = true)   // al volver de una app
         applyDebug(emptySet())   // nunca arrancar con piezas apagadas
+        Night.restoreIfExpired(this)
+        applyNight(Night.isOn(this))
         registerReceiver(debugReceiver, IntentFilter("com.alfredo.launchertv.DEBUG"), android.Manifest.permission.DUMP, null)
         refreshDock()
     }
@@ -444,9 +448,16 @@ class MainActivity : Activity() {
             }
             this.adapter = adapter
             itemAnimator = null
-            // Como el dock: lo que queda fuera de las columnas no asoma por los lados.
-            clipToPadding = true
-            clipChildren = true
+            // Lo que queda fuera de las columnas no asoma por los lados, pero la tarjeta enfocada
+            // (más grande e inclinada) tiene 10 dp de margen para no cortarse en los extremos:
+            // las vecinas empiezan 12 dp más allá, así que siguen sin verse.
+            clipToPadding = false
+            clipChildren = false
+            addOnLayoutChangeListener { v, l, t, r, b, _, _, _, _ ->
+                val ext = (10 * d).toInt()
+                val h = b - t
+                v.clipBounds = android.graphics.Rect(v.paddingLeft - ext, -h, (r - l) - v.paddingRight + ext, 2 * h)
+            }
             // Las tarjetas de todas las filas empiezan en la misma columna que las del dock (52 dp).
             setPadding((ROW_EDGE_DP * d).toInt(), 0, (ROW_EDGE_DP * d).toInt(), 0)
         }
@@ -470,8 +481,6 @@ class MainActivity : Activity() {
                 list.setPadding((DOCK_PAD_DP * d).toInt(), 0, (DOCK_PAD_DP * d).toInt(), 0)
                 // Las vecinas no pueden pintarse fuera del estante (antes asomaban trocitos por los lados).
                 // El foco agranda la tarjeta 9 dp por lado y cabe en sus 12 dp de relleno: no se recorta.
-                list.clipToPadding = true
-                list.clipChildren = true
                 addView(shelf, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                     marginStart = (24 * d).toInt(); marginEnd = (24 * d).toInt()
                 })
@@ -577,15 +586,78 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun tryStart(intent: Intent): Boolean = try {
-        // Animación al abrir: la app crece desde la tarjeta pulsada (si la hay y se ve).
+    private fun tryStart(intent: Intent): Boolean {
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         val from = TileAdapter.lastClicked?.takeIf { it.isAttachedToWindow && it.width > 0 }
         TileAdapter.lastClicked = null
-        val opts = from?.let { android.app.ActivityOptions.makeScaleUpAnimation(it, 0, 0, it.width, it.height).toBundle() }
-        startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), opts)
-        true
-    } catch (e: Exception) {
-        false
+        if (from == null || packageManager.resolveActivity(intent, 0) == null) {
+            return try { startActivity(intent); true } catch (e: Exception) { false }
+        }
+        // Animación al abrir: el icono crece hasta llenar la pantalla y se funde a negro; entonces
+        // la app aparece con un fundido. (Grabado en la tele: la animación del sistema hacía crecer
+        // un rectángulo NEGRO, la ventana vacía de la app, seguido de más de 1 s en negro.)
+        zoomFrom(from) {
+            try {
+                startActivity(intent, android.app.ActivityOptions.makeCustomAnimation(this, R.anim.app_enter, R.anim.launcher_hold).toBundle())
+            } catch (e: Exception) {
+                hideLaunchZoom(animate = true)
+            }
+        }
+        return true
+    }
+
+    private fun zoomFrom(card: View, then: () -> Unit) {
+        val zoom = findViewById<ImageView>(R.id.launchZoom)
+        val black = findViewById<View>(R.id.launchBlack)
+        val root = zoom.parent as View
+        val w = card.width; val h = card.height
+        val d = resources.displayMetrics.density
+        // Foto de la tarjeta (sin el marco de foco), con las esquinas redondeadas.
+        val raw = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val fg = card.foreground
+        card.foreground = null
+        card.draw(android.graphics.Canvas(raw))
+        card.foreground = fg
+        val img = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        android.graphics.Canvas(img).drawRoundRect(0f, 0f, w.toFloat(), h.toFloat(), 12 * d, 12 * d,
+            android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG).apply {
+                shader = android.graphics.BitmapShader(raw, android.graphics.Shader.TileMode.CLAMP, android.graphics.Shader.TileMode.CLAMP)
+            })
+        val loc = IntArray(2)
+        card.getLocationOnScreen(loc)
+        val rw = root.width.toFloat().coerceAtLeast(1f); val rh = root.height.toFloat().coerceAtLeast(1f)
+        zoom.animate().cancel()
+        zoom.setImageBitmap(img)
+        zoom.pivotX = 0f; zoom.pivotY = 0f
+        zoom.scaleX = w * card.scaleX / rw; zoom.scaleY = h * card.scaleY / rh
+        zoom.translationX = loc[0].toFloat(); zoom.translationY = loc[1].toFloat()
+        zoom.alpha = 1f
+        zoom.visibility = View.VISIBLE
+        black.alpha = 0f
+        black.visibility = View.VISIBLE
+        val curve = android.view.animation.PathInterpolator(0.3f, 0f, 0.1f, 1f)
+        zoom.animate().scaleX(1f).scaleY(1f).translationX(0f).translationY(0f)
+            .setDuration(LAUNCH_ZOOM_MS).setInterpolator(curve)
+            .withEndAction(then)
+            .start()
+        android.animation.ObjectAnimator.ofFloat(zoom, View.ALPHA, 1f, 0f).apply {
+            startDelay = LAUNCH_ZOOM_MS * 35 / 100; duration = LAUNCH_ZOOM_MS * 65 / 100; start()
+        }
+        android.animation.ObjectAnimator.ofFloat(black, View.ALPHA, 0f, 1f).apply {
+            startDelay = LAUNCH_ZOOM_MS * 25 / 100; duration = LAUNCH_ZOOM_MS * 70 / 100; start()
+        }
+    }
+
+    /** Al volver de una app: quitar el negro con un fundido (o al momento). */
+    private fun hideLaunchZoom(animate: Boolean) {
+        val zoom = findViewById<ImageView>(R.id.launchZoom)
+        val black = findViewById<View>(R.id.launchBlack)
+        zoom.animate().cancel()
+        zoom.visibility = View.GONE
+        zoom.setImageDrawable(null)
+        if (black.visibility != View.VISIBLE) return
+        if (!animate) { black.visibility = View.GONE; return }
+        black.animate().alpha(0f).setDuration(260).withEndAction { black.visibility = View.GONE }.start()
     }
 
     // Sonido de clic al moverse entre tarjetas (sintetizado, res/raw/click.wav).
@@ -627,6 +699,14 @@ class MainActivity : Activity() {
             .setUpdateListener { clock.invalidate() }
             .withEndAction { clock.invalidate() }
             .start()
+    }
+
+    /** Modo noche (temporizador de Dormir activo): fotos y reloj un poco más oscuros. */
+    private fun applyNight(on: Boolean) {
+        val f = if (on) GlassTextView.nightFilter() else null
+        findViewById<ImageView>(R.id.wallA).colorFilter = f
+        findViewById<ImageView>(R.id.wallB).colorFilter = f
+        clock.night = on
     }
 
     /** Mando desde el móvil: muestra la dirección a abrir en el iPhone. */
@@ -770,6 +850,7 @@ class MainActivity : Activity() {
         private const val ROW_EDGE_DP = 40
         private const val PROGRAM_TILE_DP = 200
         private const val IDLE_MS = 5 * 60_000L
+        private const val LAUNCH_ZOOM_MS = 380L
         private const val CLICK_VOLUME = 0.15f   // clic de navegación (0–1); 0,35 era alto
         private const val TAG = "LauncherTV"
         private val AIRPLAY_RECEIVERS = listOf(

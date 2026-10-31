@@ -154,4 +154,21 @@
             android:clipToPadding="false"
             android:clipChildren="false" />
     </FrameLayout>
+
+    <!-- Animación al abrir una app: el icono crece hasta llenar la pantalla y se funde a negro. -->
+    <View
+        android:id="@+id/launchBlack"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/black"
+        android:alpha="0"
+        android:visibility="gone" />
+
+    <ImageView
+        android:id="@+id/launchZoom"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:visibility="gone"
+        android:contentDescription="@null" />
 </FrameLayout>

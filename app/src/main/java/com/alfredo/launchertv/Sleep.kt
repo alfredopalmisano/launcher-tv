@@ -64,12 +64,14 @@ object Sleep {
         val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending(context))
         prefs(context).edit().putLong(PREF, at).apply()
+        Night.on(context)   // brillo a 10 y fotos más oscuras mientras dure el temporizador
     }
 
     fun cancel(context: Context) {
         val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         am.cancel(pending(context))
         clear(context)
+        Night.off(context)  // brillo y fotos como estaban
     }
 
     /** Minutos que faltan, o null si no hay temporizador. */

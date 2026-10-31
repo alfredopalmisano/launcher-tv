@@ -97,6 +97,9 @@ class GlassTextView @JvmOverloads constructor(
 
     /** Interruptores para medir cuánto cuesta cada parte (solo desde adb, ver MainActivity.debug). */
     var debugNoShadow = false
+    /** Modo noche: las fotos se ven más oscuras, así que el cristal también. */
+    var night = false
+        set(value) { field = value; invalidate() }
     var debugNoMask = false
 
     private var zoom = 1f
@@ -231,7 +234,7 @@ class GlassTextView @JvmOverloads constructor(
         //    ALPHA_8: la gráfica la colorea con el fondo).
         val shader = glassShader
         if (shader != null) {
-            fill.colorFilter = LIGHTEN   // cristal esmerilado claro siempre, como el iPhone
+            fill.colorFilter = if (night) LIGHTEN_NIGHT else LIGHTEN   // igual de oscuro que las fotos en modo noche
             fill.alpha = 255
             fill.shader = align(shader, glassBitmap, zoom)
             canvas.drawBitmap(textMask, 0f, 0f, fill)
@@ -334,6 +337,17 @@ class GlassTextView @JvmOverloads constructor(
                 0f, 0f, 0f, 1f, 0f
             )))
         })
+
+        /** Factor de oscurecido de las fotos en modo noche (lo usan también las fotos). */
+        const val NIGHT_FACTOR = 0.62f
+
+        fun nightFilter() = ColorMatrixColorFilter(ColorMatrix().apply { setScale(NIGHT_FACTOR, NIGHT_FACTOR, NIGHT_FACTOR, 1f) })
+
+        private val LIGHTEN_NIGHT = ColorMatrixColorFilter(ColorMatrix(floatArrayOf(
+            NIGHT_FACTOR, 0f, 0f, 0f, 14f * NIGHT_FACTOR,
+            0f, NIGHT_FACTOR, 0f, 0f, 14f * NIGHT_FACTOR,
+            0f, 0f, NIGHT_FACTOR, 0f, 14f * NIGHT_FACTOR,
+            0f, 0f, 0f, 1f, 0f)))
 
         /** Aclara y desatura un poco el fondo para que parezca cristal esmerilado. */
         private val LIGHTEN = ColorMatrixColorFilter(ColorMatrix().apply {

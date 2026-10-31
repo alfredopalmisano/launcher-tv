@@ -55,13 +55,21 @@ class RemoteService : Service() {
             .setSmallIcon(R.drawable.ic_app)
             .build()
         startForeground(1, n)
-        TvAdb.startInjector(this)   // dejar listo el inyector: la primera tecla ya va rápida
+        TvAdb.startInjector(this)
+        // Al encender la tele (después de que el temporizador la apagara): brillo normal otra vez.
+        registerReceiver(screenOn, android.content.IntentFilter(Intent.ACTION_SCREEN_ON))
+        Night.restoreIfExpired(this)   // dejar listo el inyector: la primera tecla ya va rápida
         startServer()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
+    private val screenOn = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) { Night.restoreIfExpired(context) }
+    }
+
     override fun onDestroy() {
+        try { unregisterReceiver(screenOn) } catch (e: Exception) { }
         running = false
         try { server?.close() } catch (e: Exception) { }
         pool.shutdownNow()
