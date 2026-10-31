@@ -221,8 +221,21 @@ class MainActivity : Activity() {
     }
 
     override fun onBackPressed() {
-        if (overlay.visibility == View.VISIBLE) hideAllApps()
-        // En la pantalla principal "atrás" no hace nada: somos el inicio.
+        when {
+            overlay.visibility == View.VISIBLE -> hideAllApps()
+            ambient -> { }   // ya estás en las imágenes: somos el inicio, no hay más atrás
+            // Desde Conexiones o Continuar viendo: subir al dock, a la app donde estabas.
+            !dock.hasFocus() -> {
+                TileAdapter.sweep = TileAdapter.Sweep.UP
+                rowsScroll.smoothScrollTo(0, 0)
+                dock.post {
+                    val v = if (dockFocusPos >= 0) dock.layoutManager?.findViewByPosition(dockFocusPos) else null
+                    if (v != null) v.requestFocus() else focusFirstVisible(dock)
+                }
+            }
+            // Desde el dock: solo las imágenes con el reloj.
+            else -> setAmbient(true)
+        }
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -259,6 +272,11 @@ class MainActivity : Activity() {
         if ((code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT) && overlay.visibility != View.VISIBLE) {
             val row = listOf(dock, systemRow, recentsRow).firstOrNull { it.hasFocus() }
             if (row != null && stepRow(row, if (code == KeyEvent.KEYCODE_DPAD_RIGHT) 1 else -1)) return true
+        }
+
+        // Al bajar desde el dock, recordar la app para volver a ella con Atrás.
+        if (code == KeyEvent.KEYCODE_DPAD_DOWN && dock.hasFocus()) {
+            dock.focusedChild?.let { dockFocusPos = dock.getChildAdapterPosition(it) }
         }
 
         // Arriba desde la primera fila: esconder las apps y dejar solo el fondo con el reloj.
