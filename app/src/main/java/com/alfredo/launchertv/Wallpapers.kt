@@ -122,6 +122,9 @@ class Wallpapers(
         fadeAnims.forEach { it.cancel() }; fadeAnims.clear()
         val s = top.photo.scaleX
         bottom.photo.setImageDrawable(top.photo.drawable)
+        // Sin foto debajo (solo al arrancar), negro; con foto, nada: la foto ya tapa la pantalla.
+        if (bottom.photo.drawable == null) bottom.photo.setBackgroundColor(android.graphics.Color.BLACK)
+        else bottom.photo.background = null
         bottom.photo.scaleX = s; bottom.photo.scaleY = s
         bottom.photo.alpha = 1f
         // 2) La foto nueva entra arriba desde transparente. (La montaña ya no es una capa aparte:
@@ -129,7 +132,7 @@ class Wallpapers(
         //    gráfica pinta dos pantallas completas menos en cada fotograma.)
         top.photo.setImageBitmap(bmp)
         top.photo.scaleX = 1f; top.photo.scaleY = 1f; top.photo.alpha = 0f
-        fade(top.photo, 1f) { bottom.photo.setImageDrawable(null) }
+        fade(top.photo, 1f) { bottom.photo.setImageDrawable(null); bottom.photo.background = null }
         kenBurns(top)
         onPhotoChanged?.invoke(p)
         val author = credits[files[index]]
@@ -161,6 +164,14 @@ class Wallpapers(
     private fun prepare(i: Int): Prepared? {
         val name = files[i]
         val bmp = decode(name) ?: return null
+        // El degradado oscuro de abajo (detrás del dock) se pinta dentro de la foto una vez,
+        // en vez de ser una capa a pantalla completa en cada fotograma. Se ve igual.
+        try {
+            context.getDrawable(R.drawable.scrim)?.mutate()?.let { d ->
+                d.setBounds(0, 0, bmp.width, bmp.height)
+                d.draw(android.graphics.Canvas(bmp))
+            }
+        } catch (e: Exception) { }
         val plan = layouts[name]
         val mask = if (plan?.useFg == true) layouts.mask(name) else null
         val dm = context.resources.displayMetrics
@@ -201,6 +212,7 @@ class Wallpapers(
         context.assets.open("wallpapers/$name").use { stream ->
             val opts = BitmapFactory.Options().apply {
                 inPreferredConfig = Bitmap.Config.RGB_565
+                inMutable = true   // para pintar el degradado dentro
                 inSampleSize = 1
             }
             BitmapFactory.decodeStream(stream, null, opts)

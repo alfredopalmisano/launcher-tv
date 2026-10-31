@@ -95,7 +95,6 @@ class MainActivity : Activity() {
     /** Apaga (o vuelve a encender) piezas para medir su coste. Vacío = todo normal. */
     private fun applyDebug(off: Set<String>) {
         run {
-            findViewById<View>(R.id.scrim).visibility = if ("scrim" in off) View.INVISIBLE else View.VISIBLE
             rowsScroll.visibility = if ("filas" in off) View.INVISIBLE else View.VISIBLE
             clockBox.visibility = if ("reloj" in off) View.INVISIBLE else View.VISIBLE
             clock.debugNoMask = "mascara" in off
@@ -105,8 +104,6 @@ class MainActivity : Activity() {
                 TileAdapter.noElevation = "tarjetas" in off
                 dockAdapter.notifyDataSetChanged(); systemAdapter.notifyDataSetChanged(); recentsAdapter.notifyDataSetChanged()
             }
-            (findViewById<ViewGroup>(android.R.id.content).getChildAt(0)).setBackgroundColor(
-                if ("raiz" in off) android.graphics.Color.TRANSPARENT else android.graphics.Color.BLACK)
         }
     }
 
