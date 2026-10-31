@@ -21,10 +21,6 @@ class TileAdapter(
 
     private val items = ArrayList<Tile>()
 
-    /** Ancho real de la tarjeta en píxeles; el dock lo ajusta al ancho medido del estante. */
-    var tileWidthPx: Int = 0
-        set(value) { if (value > 0 && value != field) { field = value; notifyDataSetChanged() } }
-
     /** Tarjeta que se está recolocando (modo mover). */
     var movingId: String? = null
         set(value) { field = value; notifyDataSetChanged() }
@@ -42,14 +38,16 @@ class TileAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
         val v = LayoutInflater.from(parent.context).inflate(R.layout.item_tile, parent, false)
         val d = parent.resources.displayMetrics.density
-        if (tileWidthPx <= 0) tileWidthPx = (tileWidthDp * d).toInt()
+        val w = (tileWidthDp * d).toInt()
+        val card = v.findViewById<FrameLayout>(R.id.card)
+        card.layoutParams = card.layoutParams.apply { width = w; height = w * 9 / 16 }
         val label = v.findViewById<TextView>(R.id.label)
+        label.layoutParams = label.layoutParams.apply { width = w }
         if (!showLabels) label.visibility = View.GONE
         return Holder(v)
     }
 
     override fun onBindViewHolder(holder: Holder, position: Int) {
-        holder.size(tileWidthPx)
         holder.bind(items[position])
     }
 
@@ -63,13 +61,6 @@ class TileAdapter(
         private val focusDrawable = view.context.getDrawable(R.drawable.tile_focus)
         private val movingDrawable = view.context.getDrawable(R.drawable.tile_moving)
         private val white = ColorStateList.valueOf(0xFFFFFFFF.toInt())
-
-        fun size(w: Int) {
-            if (card.layoutParams.width != w) {
-                card.layoutParams = card.layoutParams.apply { width = w; height = w * 9 / 16 }
-                label.layoutParams = label.layoutParams.apply { width = w }
-            }
-        }
 
         init {
             card.clipToOutline = true

@@ -300,21 +300,6 @@ class MainActivity : Activity() {
                 // desplaza de tarjeta en tarjeta y nunca queda una cortada en el borde.
                 // 960 dp de pantalla − 2×24 margen − 2×8 relleno − 2×DOCK_PAD = DOCK_VISIBLE × (tarjeta + 24).
                 list.setPadding((DOCK_PAD_DP * d).toInt(), 0, (DOCK_PAD_DP * d).toInt(), 0)
-                // Lo que asoma de las tarjetas vecinas se queda detrás del borde del estante.
-                list.clipToPadding = true
-                list.clipChildren = true
-                // Medir el estante real y repartirlo en DOCK_VISIBLE columnas exactas (sin confiar en constantes).
-                list.addOnLayoutChangeListener { v, l, _, r, _, ol, _, or, _ ->
-                    if (r - l == or - ol && adapter.tileWidthPx > 0) return@addOnLayoutChangeListener
-                    val inner = (r - l) - v.paddingLeft - v.paddingRight
-                    if (inner <= 0) return@addOnLayoutChangeListener
-                    val pitch = inner / DOCK_VISIBLE
-                    val sobra = inner - pitch * DOCK_VISIBLE
-                    val w = pitch - (24 * d).toInt()          // 12 dp de relleno a cada lado en item_tile
-                    android.util.Log.i(TAG, "dock: ancho=${r - l} interior=$inner paso=$pitch tarjeta=$w sobra=$sobra")
-                    if (sobra != 0) v.post { v.setPadding(v.paddingLeft + sobra / 2, 0, v.paddingRight + sobra - sobra / 2, 0) }
-                    adapter.tileWidthPx = w
-                }
                 addView(shelf, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                     marginStart = (24 * d).toInt(); marginEnd = (24 * d).toInt()
                 })
@@ -558,9 +543,8 @@ class MainActivity : Activity() {
     }
 
     companion object {
-        private const val DOCK_TILE_DP = 152      // valor inicial; se recalcula con el ancho medido del estante
+        private const val DOCK_TILE_DP = 152      // 5 × (152 + 24) = 880 = 960 − 48 − 16 − 16
         private const val DOCK_PAD_DP = 8
-        private const val DOCK_VISIBLE = 5
         private const val GRID_TILE_DP = 144
         private const val ROW_TILE_DP = 150
         private const val PROGRAM_TILE_DP = 200
