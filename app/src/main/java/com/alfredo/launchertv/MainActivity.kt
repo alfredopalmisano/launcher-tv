@@ -602,7 +602,7 @@ class MainActivity : Activity() {
         sounds = sp
         // Solo cuando el foco se mueve por una flecha del mando (no al volver de una app, etc.).
         TileAdapter.onFocusSound = {
-            if (android.os.SystemClock.uptimeMillis() - lastNavKey < 400) sounds?.play(clickId, 0.35f, 0.35f, 1, 0, 1f)
+            if (android.os.SystemClock.uptimeMillis() - lastNavKey < 400) sounds?.play(clickId, CLICK_VOLUME, CLICK_VOLUME, 1, 0, 1f)
         }
     }
 
@@ -770,6 +770,7 @@ class MainActivity : Activity() {
         private const val ROW_EDGE_DP = 40
         private const val PROGRAM_TILE_DP = 200
         private const val IDLE_MS = 5 * 60_000L
+        private const val CLICK_VOLUME = 0.15f   // clic de navegación (0–1); 0,35 era alto
         private const val TAG = "LauncherTV"
         private val AIRPLAY_RECEIVERS = listOf(
             "io.github.jqssun.airplay",        // AirPlay Server (código abierto, UxPlay) — paso6_airplay.sh
