@@ -106,11 +106,24 @@ class TileAdapter(
                 // Luz que barre el cristal al enfocar y se queda como reflejo suave.
                 shine.animate().cancel()
                 if (focused) {
-                    shine.translationX = -card.width.toFloat()
+                    // El brillo barre en la dirección en la que te mueves (← → ↑ ↓).
+                    val w = card.width.toFloat()
+                    val h = card.height.toFloat()
+                    val (fromX, toX, fromY, toY) = when (sweep) {
+                        Sweep.RIGHT -> listOf(-w, w, 0f, 0f)
+                        Sweep.LEFT -> listOf(w, -w, 0f, 0f)
+                        Sweep.UP -> listOf(0f, 0f, h, -h)
+                        Sweep.DOWN -> listOf(0f, 0f, -h, h)
+                    }
+                    shine.translationX = fromX
+                    shine.translationY = fromY
                     shine.alpha = 0.95f
-                    shine.animate().translationX(card.width.toFloat()).setDuration(520)
+                    shine.animate().translationX(toX).translationY(toY).setDuration(520)
                         .setInterpolator(android.view.animation.DecelerateInterpolator())
-                        .withEndAction { shine.translationX = 0f; shine.alpha = 0f; shine.animate().alpha(0.35f).setDuration(250).start() }
+                        .withEndAction {
+                            shine.translationX = 0f; shine.translationY = 0f; shine.alpha = 0f
+                            shine.animate().alpha(0.35f).setDuration(250).start()
+                        }
                         .start()
                 } else {
                     shine.animate().alpha(0f).setDuration(150).start()
@@ -173,7 +186,11 @@ class TileAdapter(
         }
     }
 
+    /** Dirección del último movimiento con el mando: hacia dónde barre el brillo. */
+    enum class Sweep { LEFT, RIGHT, UP, DOWN }
+
     companion object {
+        var sweep = Sweep.RIGHT
         /** Vueltas del carrusel: de sobra para no llegar nunca al final (y barato: solo es un número). */
         const val LOOP_TURNS = 400
     }

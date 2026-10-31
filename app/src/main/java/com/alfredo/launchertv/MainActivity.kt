@@ -56,8 +56,8 @@ class MainActivity : Activity() {
     // El dock es un carrusel: tras la última tarjeta vuelve la primera (si hay más de las que caben).
     private val dockAdapter = TileAdapter(DOCK_TILE_DP, false, ::open,
         onLongClick = { showAppMenu(it, fromDock = true) }, loopMin = DOCK_VISIBLE)
-    private val recentsAdapter = TileAdapter(PROGRAM_TILE_DP, true, ::open) { false }
-    private val systemAdapter = TileAdapter(ROW_TILE_DP, true, ::open) { showSystemMenu(it) }
+    private val recentsAdapter = TileAdapter(PROGRAM_TILE_DP, true, ::open, loopMin = PROGRAM_VISIBLE) { false }
+    private val systemAdapter = TileAdapter(ROW_TILE_DP, true, ::open, loopMin = DOCK_VISIBLE) { showSystemMenu(it) }
     private val gridAdapter = TileAdapter(GRID_TILE_DP, true, ::open) { showAppMenu(it, fromDock = false) }
 
     private var apps: List<Tile.App> = emptyList()
@@ -217,6 +217,21 @@ class MainActivity : Activity() {
             }
         }
 
+        // El brillo de la tarjeta barre en la dirección del movimiento.
+        when (code) {
+            KeyEvent.KEYCODE_DPAD_LEFT -> TileAdapter.sweep = TileAdapter.Sweep.LEFT
+            KeyEvent.KEYCODE_DPAD_RIGHT -> TileAdapter.sweep = TileAdapter.Sweep.RIGHT
+            KeyEvent.KEYCODE_DPAD_UP -> TileAdapter.sweep = TileAdapter.Sweep.UP
+            KeyEvent.KEYCODE_DPAD_DOWN -> TileAdapter.sweep = TileAdapter.Sweep.DOWN
+        }
+
+        // ← → dentro de una fila los llevamos nosotros: así, pulsando rápido, el foco nunca
+        // salta a otra tarjeta lejana ni a otra fila (pasaba al final del carrusel).
+        if ((code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT) && overlay.visibility != View.VISIBLE) {
+            val row = listOf(dock, systemRow, recentsRow).firstOrNull { it.hasFocus() }
+            if (row != null && stepRow(row, if (code == KeyEvent.KEYCODE_DPAD_RIGHT) 1 else -1)) return true
+        }
+
         // Arriba desde la primera fila: esconder las apps y dejar solo el fondo con el reloj.
         if (code == KeyEvent.KEYCODE_DPAD_UP && overlay.visibility != View.VISIBLE && dock.hasFocus() && rowsScroll.scrollY == 0) {
             setAmbient(true)
@@ -290,6 +305,40 @@ class MainActivity : Activity() {
         }
     }
 
+    /**
+     * Mueve el foco una tarjeta a la izquierda (−1) o derecha (+1) dentro de [row].
+     * Si la tarjeta aún no está dibujada (pulsando muy rápido), la trae a la vista y la enfoca
+     * al terminar. En los extremos de una fila sin carrusel no hace nada.
+     */
+    private fun stepRow(row: RecyclerView, delta: Int): Boolean {
+        val adapter = row.adapter as? TileAdapter ?: return false
+        val lm = row.layoutManager as? LinearLayoutManager ?: return false
+        val focused = row.focusedChild ?: return false
+        val base = pendingFocus?.takeIf { it.first === row }?.second ?: row.getChildAdapterPosition(focused)
+        if (base < 0) return false
+        val target = base + delta
+        if (target < 0 || target >= adapter.itemCount) return true   // final de una fila sin carrusel
+        val v = lm.findViewByPosition(target)
+        if (v != null && pendingFocus == null) {
+            v.requestFocus()
+            return true
+        }
+        // Todavía no está dibujada: colocarla (alineada al borde) y enfocarla en cuanto lo esté.
+        pendingFocus = row to target
+        lm.scrollToPosition(target)
+        row.post {
+            val pf = pendingFocus
+            if (pf != null && pf.first === row) {
+                pendingFocus = null
+                lm.findViewByPosition(pf.second)?.requestFocus()
+            }
+        }
+        return true
+    }
+
+    /** Foco pendiente (fila, posición) mientras se dibuja la tarjeta destino. */
+    private var pendingFocus: Pair<RecyclerView, Int>? = null
+
     /** Foco en la primera tarjeta que se ve entera de la fila. */
     private fun focusFirstVisible(row: RecyclerView) {
         val lm = row.layoutManager as LinearLayoutManager
@@ -317,11 +366,20 @@ class MainActivity : Activity() {
             setPadding(((ROW_EDGE_DP + 12) * d).toInt(), (10 * d).toInt(), 0, 0)
         }
         val list = RecyclerView(this).apply {
-            layoutManager = LinearLayoutManager(this@MainActivity, RecyclerView.HORIZONTAL, false)
+            layoutManager = object : LinearLayoutManager(this@MainActivity, RecyclerView.HORIZONTAL, false) {
+                // Dejar dibujada una tarjeta más a cada lado (fuera de la vista): al pulsar rápido
+                // siempre hay a dónde ir y el desplazamiento sigue siendo suave.
+                override fun calculateExtraLayoutSpace(state: RecyclerView.State, extraLayoutSpace: IntArray) {
+                    val e = (EXTRA_LAYOUT_DP * d).toInt()
+                    extraLayoutSpace[0] = e
+                    extraLayoutSpace[1] = e
+                }
+            }
             this.adapter = adapter
             itemAnimator = null
-            clipToPadding = false
-            clipChildren = false
+            // Como el dock: lo que queda fuera de las columnas no asoma por los lados.
+            clipToPadding = true
+            clipChildren = true
             // Las tarjetas de todas las filas empiezan en la misma columna que las del dock (52 dp).
             setPadding((ROW_EDGE_DP * d).toInt(), 0, (ROW_EDGE_DP * d).toInt(), 0)
         }
@@ -367,10 +425,17 @@ class MainActivity : Activity() {
 
     private fun refreshRows() {
         val programs = WatchNextRepository.load(this)
-        recentsAdapter.submit(programs)
+        submitRow(recentsRow, recentsAdapter, programs)
         (recentsRow.parent as View).visibility = if (programs.isEmpty()) View.GONE else View.VISIBLE
 
         refreshSystem()
+    }
+
+    /** Carga una fila; si cambia el número de tarjetas, coloca el carrusel en su vuelta del medio. */
+    private fun submitRow(row: RecyclerView, adapter: TileAdapter, tiles: List<Tile>) {
+        val sizeBefore = adapter.size
+        adapter.submit(tiles)
+        if (sizeBefore != tiles.size) (row.layoutManager as LinearLayoutManager).scrollToPositionWithOffset(adapter.loopStart(), 0)
     }
 
     private fun refreshSystem() {
@@ -384,7 +449,7 @@ class MainActivity : Activity() {
         sys.add(Tile.Action("remote", getString(R.string.remote), R.drawable.ic_phone))
         sys.add(Tile.Store)
         sys.add(Tile.SettingsTile)
-        systemAdapter.submit(systemOrder.apply(sys))
+        submitRow(systemRow, systemAdapter, systemOrder.apply(sys))
     }
 
     private fun refreshDock(focus: String? = null) {
@@ -392,12 +457,7 @@ class MainActivity : Activity() {
         val tiles = ArrayList<Tile>()
         tiles.addAll(favorites.get(apps))
         tiles.add(Tile.AllApps)
-        val sizeBefore = dockAdapter.size
-        dockAdapter.submit(tiles)
-        if (sizeBefore != tiles.size) {
-            // Cambió el número de apps: colocar el carrusel en su vuelta del medio, alineado a las columnas.
-            (dock.layoutManager as LinearLayoutManager).scrollToPositionWithOffset(dockAdapter.loopStart(), 0)
-        }
+        submitRow(dock, dockAdapter, tiles)
         refreshRows()
         if (focus != null) {
             focusTile(dock, dockAdapter, focus)
@@ -611,6 +671,8 @@ class MainActivity : Activity() {
         private const val DOCK_TILE_DP = 152      // 5 × (152 + 24) = 880 = 960 − 48 − 16 − 16
         private const val DOCK_PAD_DP = 8
         private const val DOCK_VISIBLE = 5      // tarjetas que caben en el estante
+        private const val PROGRAM_VISIBLE = 3   // carátulas de Continuar viendo que caben
+        private const val EXTRA_LAYOUT_DP = 240 // algo más que una tarjeta (176 dp en dock y sistema, 224 en programas)
         private const val GRID_TILE_DP = 144
         private const val ROW_TILE_DP = 152      // igual que el dock: mismas columnas
         /** Relleno de las filas: 40 + 12 de la tarjeta = 52 dp, donde empiezan las tarjetas del dock (24+8+8+12). */
