@@ -95,6 +95,7 @@ class MainActivity : Activity() {
     /** Apaga (o vuelve a encender) piezas para medir su coste. Vacío = todo normal. */
     private fun applyDebug(off: Set<String>) {
         run {
+            findViewById<View>(R.id.scrim).visibility = if ("scrim" in off) View.INVISIBLE else View.VISIBLE
             rowsScroll.visibility = if ("filas" in off) View.INVISIBLE else View.VISIBLE
             clockBox.visibility = if ("reloj" in off) View.INVISIBLE else View.VISIBLE
             clock.debugNoMask = "mascara" in off
@@ -104,6 +105,8 @@ class MainActivity : Activity() {
                 TileAdapter.noElevation = "tarjetas" in off
                 dockAdapter.notifyDataSetChanged(); systemAdapter.notifyDataSetChanged(); recentsAdapter.notifyDataSetChanged()
             }
+            (findViewById<ViewGroup>(android.R.id.content).getChildAt(0)).setBackgroundColor(
+                if ("raiz" in off) android.graphics.Color.TRANSPARENT else android.graphics.Color.BLACK)
         }
     }
 
@@ -188,6 +191,7 @@ class MainActivity : Activity() {
         grid.itemAnimator = null
 
         hideSystemUi()
+        setupSounds()
         reload()
     }
 
@@ -254,6 +258,8 @@ class MainActivity : Activity() {
         resetIdle()
         if (event.action != KeyEvent.ACTION_DOWN) return super.dispatchKeyEvent(event)
         val code = event.keyCode
+        if (code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT ||
+            code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN) lastNavKey = android.os.SystemClock.uptimeMillis()
 
         // Modo ambiente (solo fondo y reloj): SOLO la flecha abajo vuelve a las apps; el resto no hace nada.
         if (ambient) {
@@ -572,10 +578,32 @@ class MainActivity : Activity() {
     }
 
     private fun tryStart(intent: Intent): Boolean = try {
-        startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        // Animación al abrir: la app crece desde la tarjeta pulsada (si la hay y se ve).
+        val from = TileAdapter.lastClicked?.takeIf { it.isAttachedToWindow && it.width > 0 }
+        TileAdapter.lastClicked = null
+        val opts = from?.let { android.app.ActivityOptions.makeScaleUpAnimation(it, 0, 0, it.width, it.height).toBundle() }
+        startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), opts)
         true
     } catch (e: Exception) {
         false
+    }
+
+    // Sonido de clic al moverse entre tarjetas (sintetizado, res/raw/click.wav).
+    private var sounds: android.media.SoundPool? = null
+    private var clickId = 0
+    private var lastNavKey = 0L
+
+    private fun setupSounds() {
+        val sp = android.media.SoundPool.Builder().setMaxStreams(2).setAudioAttributes(
+            android.media.AudioAttributes.Builder()
+                .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build()).build()
+        clickId = sp.load(this, R.raw.click, 1)
+        sounds = sp
+        // Solo cuando el foco se mueve por una flecha del mando (no al volver de una app, etc.).
+        TileAdapter.onFocusSound = {
+            if (android.os.SystemClock.uptimeMillis() - lastNavKey < 400) sounds?.play(clickId, 0.35f, 0.35f, 1, 0, 1f)
+        }
     }
 
     /**

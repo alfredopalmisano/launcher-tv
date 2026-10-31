@@ -105,7 +105,7 @@ class GlassTextView @JvmOverloads constructor(
 
     /** Zoom de la foto de fondo (Ken Burns), centrado en la pantalla. Redibuja solo si cambia lo bastante. */
     fun setZoom(z: Float) {
-        if (kotlin.math.abs(z - zoom) < 0.0015f) return
+        if (kotlin.math.abs(z - zoom) < 0.0001f) return   // cada paso del zoom (~5 por segundo)
         zoom = z
         invalidate()
     }

@@ -96,14 +96,14 @@ class Wallpapers(
     fun start() {
         if (running) return
         running = true
-        if (index < 0) advance() else kenBurns(top)
+        if (index < 0) advance() else { handler.removeCallbacks(kbTick); kbTick.run() }
         handler.postDelayed(next, INTERVAL_MS)
     }
 
     fun stop() {
         running = false
         handler.removeCallbacks(next)
-        zoom?.cancel()
+        handler.removeCallbacks(kbTick)
     }
 
     private fun advance() {
@@ -122,9 +122,6 @@ class Wallpapers(
         fadeAnims.forEach { it.cancel() }; fadeAnims.clear()
         val s = top.photo.scaleX
         bottom.photo.setImageDrawable(top.photo.drawable)
-        // Sin foto debajo (solo al arrancar), negro; con foto, nada: la foto ya tapa la pantalla.
-        if (bottom.photo.drawable == null) bottom.photo.setBackgroundColor(android.graphics.Color.BLACK)
-        else bottom.photo.background = null
         bottom.photo.scaleX = s; bottom.photo.scaleY = s
         bottom.photo.alpha = 1f
         // 2) La foto nueva entra arriba desde transparente. (La montaña ya no es una capa aparte:
@@ -132,7 +129,7 @@ class Wallpapers(
         //    gráfica pinta dos pantallas completas menos en cada fotograma.)
         top.photo.setImageBitmap(bmp)
         top.photo.scaleX = 1f; top.photo.scaleY = 1f; top.photo.alpha = 0f
-        fade(top.photo, 1f) { bottom.photo.setImageDrawable(null); bottom.photo.background = null }
+        fade(top.photo, 1f) { bottom.photo.setImageDrawable(null) }
         kenBurns(top)
         onPhotoChanged?.invoke(p)
         val author = credits[files[index]]
@@ -164,14 +161,6 @@ class Wallpapers(
     private fun prepare(i: Int): Prepared? {
         val name = files[i]
         val bmp = decode(name) ?: return null
-        // El degradado oscuro de abajo (detrás del dock) se pinta dentro de la foto una vez,
-        // en vez de ser una capa a pantalla completa en cada fotograma. Se ve igual.
-        try {
-            context.getDrawable(R.drawable.scrim)?.mutate()?.let { d ->
-                d.setBounds(0, 0, bmp.width, bmp.height)
-                d.draw(android.graphics.Canvas(bmp))
-            }
-        } catch (e: Exception) { }
         val plan = layouts[name]
         val mask = if (plan?.useFg == true) layouts.mask(name) else null
         val dm = context.resources.displayMetrics
@@ -198,21 +187,34 @@ class Wallpapers(
     }
 
     /**
-     * Antes había un zoom lento continuo (Ken Burns). Se quitó: obligaba a redibujar la
-     * pantalla entera 60 veces por segundo y la tele no llegaba (medido: ~38 fps en reposo).
-     * Ahora, sin cambio de foto, la tele no tiene que redibujar nada.
+     * Zoom lento (Ken Burns): de 1 a 1,07 en lo que dura la foto. Es tan lento (menos de 2 px
+     * por segundo en los bordes) que basta con actualizarlo ~5 veces por segundo: se ve igual
+     * de suave y la tele trabaja unas 12 veces menos que a 60 fps (medido: a 60 no daba abasto).
      */
+    private var kbLayer: Layer? = null
+    private var kbStart = 0L
+    private val kbTick = object : Runnable {
+        override fun run() {
+            val l = kbLayer ?: return
+            val t = ((android.os.SystemClock.uptimeMillis() - kbStart).toFloat() / (INTERVAL_MS + FADE_MS)).coerceIn(0f, 1f)
+            val sc = 1f + KB_ZOOM * t
+            l.photo.scaleX = sc; l.photo.scaleY = sc
+            onZoom?.invoke(sc)
+            if (t < 1f && running) handler.postDelayed(this, KB_STEP_MS)
+        }
+    }
+
     private fun kenBurns(layer: Layer) {
-        zoom?.cancel()
-        layer.photo.scaleX = 1f; layer.photo.scaleY = 1f
-        onZoom?.invoke(1f)
+        handler.removeCallbacks(kbTick)
+        kbLayer = layer
+        kbStart = android.os.SystemClock.uptimeMillis()
+        kbTick.run()
     }
 
     private fun decode(name: String): Bitmap? = try {
         context.assets.open("wallpapers/$name").use { stream ->
             val opts = BitmapFactory.Options().apply {
                 inPreferredConfig = Bitmap.Config.RGB_565
-                inMutable = true   // para pintar el degradado dentro
                 inSampleSize = 1
             }
             BitmapFactory.decodeStream(stream, null, opts)
@@ -224,5 +226,7 @@ class Wallpapers(
     companion object {
         private const val INTERVAL_MS = 40_000L
         private const val FADE_MS = 1_600L
+        private const val KB_ZOOM = 0.07f
+        private const val KB_STEP_MS = 200L
     }
 }

@@ -97,13 +97,34 @@ class TileAdapter(
 
         init {
             card.clipToOutline = true
+            // Cámara lejos: la inclinación 3D se ve sutil, sin deformar la tarjeta.
+            card.cameraDistance = 9000f * view.resources.displayMetrics.density
             label.typeface = Fonts.medium(view.context)
-            view.setOnClickListener { itemAt(bindingAdapterPosition)?.let(onClick) }
+            view.setOnClickListener {
+                // Al pulsar: la tarjeta se hunde un instante (respuesta inmediata, como en Apple TV)
+                // y la app se abre creciendo desde ella (ver MainActivity.tryStart).
+                lastClicked = card
+                card.animate().scaleX(1.04f).scaleY(1.04f).setDuration(90)
+                    .withEndAction { card.animate().scaleX(1.12f).scaleY(1.12f).setDuration(160).start() }
+                    .start()
+                itemAt(bindingAdapterPosition)?.let(onClick)
+            }
             view.setOnLongClickListener { itemAt(bindingAdapterPosition)?.let(onLongClick) ?: false }
             view.setOnFocusChangeListener { _, focused ->
+                val d = view.resources.displayMetrics.density
                 val scale = if (focused) 1.12f else 1f
-                card.animate().scaleX(scale).scaleY(scale).translationZ(if (focused) 18f else 0f)
-                    .setDuration(200).setInterpolator(android.view.animation.DecelerateInterpolator()).start()
+                // Efecto 3D: al llegar, la tarjeta llega ladeada hacia donde te mueves y se endereza
+                // con un pequeño rebote; al enfocarse se eleva (sombra más profunda).
+                if (focused) {
+                    card.rotationY = when (sweep) { Sweep.RIGHT -> -TILT; Sweep.LEFT -> TILT; else -> 0f }
+                    card.rotationX = when (sweep) { Sweep.DOWN -> TILT * 0.7f; Sweep.UP -> -TILT * 0.7f; else -> 0f }
+                    onFocusSound?.invoke()
+                }
+                card.animate().scaleX(scale).scaleY(scale).translationZ(if (focused) 14f * d else 0f)
+                    .rotationX(0f).rotationY(0f)
+                    .setDuration(if (focused) 420 else 200)
+                    .setInterpolator(if (focused) android.view.animation.OvershootInterpolator(1.4f) else android.view.animation.DecelerateInterpolator())
+                    .start()
                 // Luz que barre el cristal al enfocar y se queda como reflejo suave.
                 shine.animate().cancel()
                 if (focused && (sweep == Sweep.UP || sweep == Sweep.DOWN)) {
@@ -191,6 +212,12 @@ class TileAdapter(
 
     companion object {
         var sweep = Sweep.RIGHT
+        /** Grados de inclinación al llegar el foco (efecto 3D). */
+        const val TILT = 7f
+        /** Última tarjeta pulsada: la app se abre creciendo desde ella. */
+        var lastClicked: View? = null
+        /** Se llama al enfocar una tarjeta (sonido de clic). */
+        var onFocusSound: (() -> Unit)? = null
         /** Prueba de rendimiento: tarjetas sin sombra de elevación. */
         var noElevation = false
         /** Vueltas del carrusel: de sobra para no llegar nunca al final (y barato: solo es un número). */
