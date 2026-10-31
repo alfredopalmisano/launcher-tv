@@ -49,8 +49,10 @@ class Wallpapers(
     var onZoom: ((Float) -> Unit)? = null
     private val layouts = Layouts(context)
 
-    private val layers = listOf(Layer(photoA, fgA), Layer(photoB, fgB))
-    private var current = 0
+    // Capa de abajo (la foto que se va) y capa de arriba (la que entra). Siempre se funde la de
+    // arriba sobre la de abajo opaca: así no hay bajón de brillo a mitad del cambio.
+    private val bottom = Layer(photoA, fgA)
+    private val top = Layer(photoB, fgB)
     private val handler = Handler(Looper.getMainLooper())
     private val files: List<String>
     private val credits: Map<String, String>
@@ -85,7 +87,7 @@ class Wallpapers(
     fun start() {
         if (running) return
         running = true
-        if (index < 0) advance() else kenBurns(layers[current])
+        if (index < 0) advance() else kenBurns(top)
         handler.postDelayed(next, INTERVAL_MS)
     }
 
@@ -107,19 +109,23 @@ class Wallpapers(
         val fgBitmap = p.fg
         android.util.Log.i("LauncherTV", "fondo ${files[index]} plan=${plan != null} fg=${fgBitmap != null} top=${plan?.digitTop}")
 
-        val outgoing = layers[current]
-        current = 1 - current
-        val incoming = layers[current]
-
-        incoming.photo.setImageBitmap(bmp)
-        incoming.fg.setImageBitmap(fgBitmap)
-        for (v in incoming.views()) { v.scaleX = 1f; v.scaleY = 1f; v.alpha = 0f }
-
-        fade(incoming.photo, 1f, null)
-        if (fgBitmap != null) fade(incoming.fg, 1f, null)
-        fade(outgoing.photo, 0f) { outgoing.photo.setImageDrawable(null) }
-        fade(outgoing.fg, 0f) { outgoing.fg.setImageDrawable(null) }
-        kenBurns(incoming)
+        // 1) Lo que se ve ahora pasa, tal cual (mismo zoom), a la capa de abajo: no cambia nada en pantalla.
+        zoom?.cancel()
+        fadeAnims.forEach { it.cancel() }; fadeAnims.clear()
+        val s = top.photo.scaleX
+        bottom.photo.setImageDrawable(top.photo.drawable)
+        bottom.fg.setImageDrawable(top.fg.drawable)
+        for (v in bottom.views()) { v.scaleX = s; v.scaleY = s }
+        bottom.photo.alpha = 1f
+        bottom.fg.alpha = top.fg.alpha
+        // 2) La foto nueva entra arriba desde transparente; la montaña vieja se va a la vez.
+        top.photo.setImageBitmap(bmp)
+        top.fg.setImageBitmap(fgBitmap)
+        for (v in top.views()) { v.scaleX = 1f; v.scaleY = 1f; v.alpha = 0f }
+        fade(top.photo, 1f) { bottom.photo.setImageDrawable(null) }
+        if (fgBitmap != null) fade(top.fg, 1f, null)
+        fade(bottom.fg, 0f) { bottom.fg.setImageDrawable(null) }
+        kenBurns(top)
         onPhotoChanged?.invoke(p)
         val author = credits[files[index]]
         credit.text = if (author != null) context.getString(R.string.credit, author) else ""
@@ -160,9 +166,14 @@ class Wallpapers(
         return Prepared(i, bmp, plan, fg, glass, plan?.bright ?: bright, blurred)
     }
 
+    private val fadeAnims = ArrayList<ObjectAnimator>()
+
     private fun fade(view: View, to: Float, end: (() -> Unit)?) {
         ObjectAnimator.ofFloat(view, View.ALPHA, view.alpha, to).apply {
             duration = FADE_MS
+            // La misma curva que usa el cristal del reloj (GlassTextView.fadeCurve).
+            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+            fadeAnims.add(this)
             if (end != null) addListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: Animator) { end() }
             })

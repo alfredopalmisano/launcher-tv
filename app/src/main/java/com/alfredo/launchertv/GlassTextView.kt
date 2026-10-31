@@ -174,7 +174,8 @@ class GlassTextView @JvmOverloads constructor(
                 val t = (android.os.SystemClock.uptimeMillis() - fadeStart) / FADE_MS.toFloat()
                 if (t < 1f) {
                     fill.shader = align(old, oldBitmap, oldZoom)
-                    fill.alpha = (255 * (1f - t)).toInt()
+                    // Misma curva que el fundido de la foto: el cristal cambia de color a la vez que ella.
+                    fill.alpha = (255 * (1f - fadeCurve(t))).toInt()
                     drawTabular(canvas, fill, x, y)
                     postInvalidateOnAnimation()
                 } else {
@@ -211,6 +212,9 @@ class GlassTextView @JvmOverloads constructor(
     companion object {
         /** Igual que el fundido de la foto en Wallpapers. */
         const val FADE_MS = 1_600L
+
+        /** Curva del fundido (= AccelerateDecelerateInterpolator, la que usa la foto). */
+        fun fadeCurve(t: Float): Float = (Math.cos((t.coerceIn(0f, 1f) + 1) * Math.PI) / 2.0 + 0.5).toFloat()
 
         /**
          * Prepara el cristal de una foto (en cualquier hilo): la foto a 1/4 de resolución, que
