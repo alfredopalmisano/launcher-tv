@@ -229,13 +229,21 @@ class MainActivity : Activity() {
         try { InputsRepository.manager(this)?.unregisterCallback(inputCallback) } catch (e: Exception) { }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Seguro: al volver (aunque Android no pase por onStart, p. ej. tras apps que no tapan
+        // del todo al launcher) nunca puede quedarse la capa negra de la animación encima.
+        hideLaunchZoom(animate = true)
+    }
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) hideSystemUi()
+        if (hasFocus) { hideSystemUi(); hideLaunchZoom(animate = true) }
     }
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
+        hideLaunchZoom(animate = false)
         // Botón Inicio estando ya en el launcher: cerrar la cuadrícula y volver al dock.
         if (overlay.visibility == View.VISIBLE) hideAllApps()
     }
@@ -599,6 +607,7 @@ class MainActivity : Activity() {
         zoomFrom(from) {
             try {
                 startActivity(intent, android.app.ActivityOptions.makeCustomAnimation(this, R.anim.app_enter, R.anim.launcher_hold).toBundle())
+                handler.postDelayed({ hideLaunchZoom(animate = false) }, 1500)
             } catch (e: Exception) {
                 hideLaunchZoom(animate = true)
             }
