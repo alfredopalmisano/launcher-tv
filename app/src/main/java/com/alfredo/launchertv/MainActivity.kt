@@ -314,7 +314,7 @@ class MainActivity : Activity() {
             textSize = 15f
             typeface = Fonts.medium(this@MainActivity)
             setShadowLayer(8f, 0f, 2f, 0x80000000.toInt())
-            setPadding((64 * d).toInt(), (10 * d).toInt(), 0, 0)
+            setPadding(((ROW_EDGE_DP + 12) * d).toInt(), (10 * d).toInt(), 0, 0)
         }
         val list = RecyclerView(this).apply {
             layoutManager = LinearLayoutManager(this@MainActivity, RecyclerView.HORIZONTAL, false)
@@ -322,7 +322,8 @@ class MainActivity : Activity() {
             itemAnimator = null
             clipToPadding = false
             clipChildren = false
-            setPadding((52 * d).toInt(), 0, (52 * d).toInt(), 0)
+            // Las tarjetas de todas las filas empiezan en la misma columna que las del dock (52 dp).
+            setPadding((ROW_EDGE_DP * d).toInt(), 0, (ROW_EDGE_DP * d).toInt(), 0)
         }
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -611,7 +612,9 @@ class MainActivity : Activity() {
         private const val DOCK_PAD_DP = 8
         private const val DOCK_VISIBLE = 5      // tarjetas que caben en el estante
         private const val GRID_TILE_DP = 144
-        private const val ROW_TILE_DP = 150
+        private const val ROW_TILE_DP = 152      // igual que el dock: mismas columnas
+        /** Relleno de las filas: 40 + 12 de la tarjeta = 52 dp, donde empiezan las tarjetas del dock (24+8+8+12). */
+        private const val ROW_EDGE_DP = 40
         private const val PROGRAM_TILE_DP = 200
         private const val IDLE_MS = 5 * 60_000L
         private const val TAG = "LauncherTV"
