@@ -116,9 +116,7 @@ class GlassTextView @JvmOverloads constructor(
      */
     fun setBackdrop(glass: Bitmap?, mask: Bitmap?, bright: Boolean, screenW: Int, screenH: Int) {
         this.screenW = screenW; this.screenH = screenH
-        oldBitmap?.recycle()
         oldBitmap = glassBitmap; oldShader = glassShader; oldZoom = zoom
-        oldMaskBitmap?.recycle()
         oldMaskBitmap = maskBitmap; oldMaskShader = maskShader
         maskBitmap = mask
         maskShader = mask?.let { BitmapShader(it, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP) }
@@ -160,6 +158,46 @@ class GlassTextView @JvmOverloads constructor(
         }
     }
 
+    // Imágenes del reloj para la hora actual (se rehacen al cambiar la hora, el tamaño o el modo).
+    private var cacheText: Bitmap? = null      // forma de las cifras (ALPHA_8)
+    private var cacheShadow: Bitmap? = null    // sombra difuminada
+    private var cacheOverlay: Bitmap? = null   // brillo superior + borde
+    private var cacheKey = ""
+
+    private fun ensureCache(x: Float, y: Float) {
+        val w = width; val h = height
+        if (w <= 0 || h <= 0) return
+        val key = "$text|$w|$h|${fill.textSize}|${System.identityHashCode(fill.typeface)}|$onBright"
+        if (key == cacheKey && cacheText != null) return
+        cacheKey = key
+        // (Sin recycle(): la gráfica puede estar aún pintando el fotograma anterior con ellas.)
+        val fm = fill.fontMetrics
+
+        // Forma de las cifras: blanco opaco sobre transparente, en un mapa de solo alfa.
+        val t = Bitmap.createBitmap(w, h, Bitmap.Config.ALPHA_8)
+        val tp = Paint(fill).apply { shader = null; colorFilter = null; color = Color.WHITE; alpha = 255 }
+        drawTabular(Canvas(t), tp, x, y)
+        cacheText = t
+
+        // Sombra (por software: difuminado de calidad, una sola vez).
+        val sh = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        drawTabular(Canvas(sh), shadow, x, y)
+        cacheShadow = sh
+
+        // Brillo superior + borde fino.
+        val ov = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val oc = Canvas(ov)
+        val top = y + fm.ascent
+        gloss.shader = LinearGradient(0f, top, 0f, y + fm.descent,
+            intArrayOf(0x8CFFFFFF.toInt(), 0x2EFFFFFF, 0x00FFFFFF, 0x22FFFFFF),
+            floatArrayOf(0f, 0.40f, 0.52f, 1f), Shader.TileMode.CLAMP)
+        drawTabular(oc, gloss, x, y)
+        // sobre cielos muy claros el borde se oscurece un poco para que las cifras no se fundan
+        edge.color = if (onBright) 0x55303A48 else 0x66FFFFFF
+        drawTabular(oc, edge, x, y)
+        cacheOverlay = ov
+    }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val w = (totalWidth() + textSizePx * 0.6f).toInt()
         val fm = fill.fontMetrics
@@ -179,55 +217,53 @@ class GlassTextView @JvmOverloads constructor(
         val masked = !debugNoMask && (maskShader != null || (oldMaskShader != null && e < 1f))
         val layer = if (masked) canvas.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null) else -1
 
-        // 1) Sombra suave.
-        if (!debugNoShadow) drawTabular(canvas, shadow, x, y)
+        // Las partes que no dependen del fondo (forma de las cifras, sombra, brillo y borde) se
+        // dibujan UNA vez por minuto en imágenes; en cada fotograma la gráfica solo pega imágenes.
+        // (Medido en la tele: dibujar las letras gigantes con sombra en cada fotograma era lo
+        // que bajaba el cambio de foto a 20–30 fps.)
+        ensureCache(x, y)
+        val textMask = cacheText ?: return
 
-        // 2) Relleno: fondo difuminado y aclarado, alineado con lo que hay detrás.
+        // 1) Sombra suave.
+        if (!debugNoShadow) cacheShadow?.let { canvas.drawBitmap(it, 0f, 0f, null) }
+
+        // 2) Relleno: el fondo de detrás, alineado píxel a píxel (la imagen de las cifras es
+        //    ALPHA_8: la gráfica la colorea con el fondo).
         val shader = glassShader
         if (shader != null) {
             fill.colorFilter = LIGHTEN   // cristal esmerilado claro siempre, como el iPhone
             fill.alpha = 255
             fill.shader = align(shader, glassBitmap, zoom)
-            drawTabular(canvas, fill, x, y)
+            canvas.drawBitmap(textMask, 0f, 0f, fill)
             // Fundido con el fondo anterior, al mismo ritmo que cambia la foto.
             val old = oldShader
             if (old != null) {
                 val t = (android.os.SystemClock.uptimeMillis() - fadeStart) / FADE_MS.toFloat()
                 if (t < 1f) {
                     fill.shader = align(old, oldBitmap, oldZoom)
-                    // Misma curva que el fundido de la foto: el cristal cambia de color a la vez que ella.
                     fill.alpha = (255 * (1f - fadeCurve(t))).toInt()
-                    drawTabular(canvas, fill, x, y)
+                    canvas.drawBitmap(textMask, 0f, 0f, fill)
                     postInvalidateOnAnimation()
                 } else {
-                    oldShader = null; oldBitmap?.recycle(); oldBitmap = null
+                    oldShader = null; oldBitmap = null
                 }
             }
-            // Velo para que siempre se lea: blanco sobre fondos oscuros, oscuro sobre cielos claros.
+            // Velo blanco muy suave para que siempre se lea.
             fill.shader = null
             fill.colorFilter = null
             fill.color = Color.WHITE
             fill.alpha = (255 * (1f - glassAmount)).toInt()
-            drawTabular(canvas, fill, x, y)
+            canvas.drawBitmap(textMask, 0f, 0f, fill)
         } else {
             fill.shader = null
             fill.colorFilter = null
             fill.color = Color.WHITE
             fill.alpha = 240
-            drawTabular(canvas, fill, x, y)
+            canvas.drawBitmap(textMask, 0f, 0f, fill)
         }
 
-        // 3) Brillo superior tipo cristal.
-        val top = y + fm.ascent
-        gloss.shader = LinearGradient(0f, top, 0f, y + fm.descent,
-            intArrayOf(0x8CFFFFFF.toInt(), 0x2EFFFFFF, 0x00FFFFFF, 0x22FFFFFF),
-            floatArrayOf(0f, 0.40f, 0.52f, 1f), Shader.TileMode.CLAMP)
-        drawTabular(canvas, gloss, x, y)
-
-        // 4) Borde fino para que los trazos queden nítidos.
-        // sobre cielos muy claros el borde se oscurece un poco para que las cifras no se fundan
-        edge.color = if (onBright) 0x55303A48 else 0x66FFFFFF
-        drawTabular(canvas, edge, x, y)
+        // 3–4) Brillo superior y borde fino (ya pintados en su imagen).
+        cacheOverlay?.let { canvas.drawBitmap(it, 0f, 0f, null) }
 
         // 5) Profundidad: borrar el reloj (y su sombra) donde la montaña queda por delante.
         //    Es lo mismo que pintar la montaña encima (es la propia foto), pero sin capas extra.
@@ -259,7 +295,7 @@ class GlassTextView @JvmOverloads constructor(
             }
             canvas.restoreToCount(layer)
         }
-        if (e >= 1f && oldMaskShader != null) { oldMaskShader = null; oldMaskBitmap?.recycle(); oldMaskBitmap = null }
+        if (e >= 1f && oldMaskShader != null) { oldMaskShader = null; oldMaskBitmap = null }
         if (e < 1f) postInvalidateOnAnimation()
     }
 

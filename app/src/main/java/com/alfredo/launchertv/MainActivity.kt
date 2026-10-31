@@ -80,7 +80,21 @@ class MainActivity : Activity() {
      */
     private val debugReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            val off = (intent.getStringExtra("off") ?: "").split(',').map { it.trim() }.toSet()
+            val off = (intent.getStringExtra("off") ?: "").split(',').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+            applyDebug(off)
+            // Seguridad: si no llega otra orden en 20 s, todo vuelve a encenderse solo.
+            handler.removeCallbacks(debugReset)
+            if (off.isNotEmpty()) handler.postDelayed(debugReset, 20_000)
+            android.util.Log.i(TAG, "debug: off=$off next=${intent.getBooleanExtra("next", false)}")
+            if (intent.getBooleanExtra("next", false)) handler.postDelayed({ wallpapers.nextNow() }, 400)
+        }
+    }
+
+    private val debugReset = Runnable { applyDebug(emptySet()) }
+
+    /** Apaga (o vuelve a encender) piezas para medir su coste. Vacío = todo normal. */
+    private fun applyDebug(off: Set<String>) {
+        run {
             findViewById<View>(R.id.scrim).visibility = if ("scrim" in off) View.INVISIBLE else View.VISIBLE
             rowsScroll.visibility = if ("filas" in off) View.INVISIBLE else View.VISIBLE
             clockBox.visibility = if ("reloj" in off) View.INVISIBLE else View.VISIBLE
@@ -93,8 +107,6 @@ class MainActivity : Activity() {
             }
             (findViewById<ViewGroup>(android.R.id.content).getChildAt(0)).setBackgroundColor(
                 if ("raiz" in off) android.graphics.Color.TRANSPARENT else android.graphics.Color.BLACK)
-            android.util.Log.i(TAG, "debug: off=$off next=${intent.getBooleanExtra("next", false)}")
-            if (intent.getBooleanExtra("next", false)) handler.postDelayed({ wallpapers.nextNow() }, 400)
         }
     }
 
@@ -195,6 +207,7 @@ class MainActivity : Activity() {
             addDataScheme("package")
         })
         InputsRepository.manager(this)?.registerCallback(inputCallback, handler)
+        applyDebug(emptySet())   // nunca arrancar con piezas apagadas
         registerReceiver(debugReceiver, IntentFilter("com.alfredo.launchertv.DEBUG"), android.Manifest.permission.DUMP, null)
         refreshDock()
     }
@@ -206,6 +219,8 @@ class MainActivity : Activity() {
         wallpapers.stop()
         try { unregisterReceiver(packageReceiver) } catch (e: Exception) { }
         try { unregisterReceiver(debugReceiver) } catch (e: Exception) { }
+        handler.removeCallbacks(debugReset)
+        applyDebug(emptySet())
         try { InputsRepository.manager(this)?.unregisterCallback(inputCallback) } catch (e: Exception) { }
     }
 
@@ -243,9 +258,11 @@ class MainActivity : Activity() {
         if (event.action != KeyEvent.ACTION_DOWN) return super.dispatchKeyEvent(event)
         val code = event.keyCode
 
-        // Modo ambiente (solo fondo y reloj): cualquier tecla vuelve a mostrar las apps.
+        // Modo ambiente (solo fondo y reloj): SOLO la flecha abajo vuelve a las apps; el resto no hace nada.
         if (ambient) {
-            if (code != KeyEvent.KEYCODE_BACK && code != KeyEvent.KEYCODE_HOME) { setAmbient(false); return true }
+            if (code == KeyEvent.KEYCODE_DPAD_DOWN) setAmbient(false)
+            if (code != KeyEvent.KEYCODE_HOME && code != KeyEvent.KEYCODE_POWER && code != KeyEvent.KEYCODE_SLEEP &&
+                code != KeyEvent.KEYCODE_VOLUME_UP && code != KeyEvent.KEYCODE_VOLUME_DOWN && code != KeyEvent.KEYCODE_VOLUME_MUTE) return true
         }
 
         // Modo mover: ← → recolocan la tarjeta; OK suelta; Atrás cancela.
