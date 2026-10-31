@@ -117,14 +117,12 @@ class MainActivity : Activity() {
             findViewById(R.id.credit))
         val overlayBg = findViewById<ImageView>(R.id.overlayBg)
         wallpapers.onZoom = { z -> clock.setZoom(z) }
-        wallpapers.onPhotoChanged = { photo, plan ->
-            clock.setBackdrop(photo, dm.widthPixels, dm.heightPixels)
-            if (plan != null) clock.setBright(plan.bright)
-            placeClock(clockBox, plan, dm.heightPixels, photo.height)
+        wallpapers.onPhotoChanged = { p ->
+            // Todo llega ya preparado: aquí solo se asigna y arrancan las animaciones.
+            clock.setBackdrop(p.glass, p.bright, dm.widthPixels, dm.heightPixels)
+            placeClock(clockBox, p.plan, dm.heightPixels, p.photo.height)
             // Fondo de la pantalla de apps: la misma foto muy difuminada.
-            val tiny = Bitmap.createScaledBitmap(photo, 32, 18, true)
-            overlayBg.setImageBitmap(Bitmap.createScaledBitmap(tiny, 320, 180, true))
-            tiny.recycle()
+            overlayBg.setImageBitmap(p.blurred)
         }
 
         // La primera fila queda abajo; las demás, fuera de pantalla hasta que bajes.
@@ -533,6 +531,8 @@ class MainActivity : Activity() {
         // El reloj es una capa cacheada: hay que redibujarlo mientras se mueve para que el cristal
         // muestre lo que hay detrás en su posición actual, no en la anterior.
         box.animate().translationY(viewTop - 72 * d).setDuration(GlassTextView.FADE_MS)
+            // Arranque y llegada suaves (curva "ease-in-out" tipo Apple), sin acelerones.
+            .setInterpolator(android.view.animation.PathInterpolator(0.42f, 0f, 0.20f, 1f))
             .setUpdateListener { clock.invalidate() }
             .withEndAction { clock.invalidate() }
             .start()

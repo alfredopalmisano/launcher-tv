@@ -105,23 +105,22 @@ class TileAdapter(
                     .setDuration(200).setInterpolator(android.view.animation.DecelerateInterpolator()).start()
                 // Luz que barre el cristal al enfocar y se queda como reflejo suave.
                 shine.animate().cancel()
-                if (focused) {
-                    // El brillo barre en la dirección en la que te mueves (← → ↑ ↓).
+                if (focused && (sweep == Sweep.UP || sweep == Sweep.DOWN)) {
+                    // Al cambiar de fila no hay barrido: solo aparece el reflejo glossy.
+                    shine.translationX = 0f; shine.translationY = 0f
+                    shine.alpha = 0f
+                    shine.animate().alpha(0.35f).setDuration(220).start()
+                } else if (focused) {
+                    // El brillo barre en la dirección en la que te mueves (← →).
                     val w = card.width.toFloat()
-                    val h = card.height.toFloat()
-                    val (fromX, toX, fromY, toY) = when (sweep) {
-                        Sweep.RIGHT -> listOf(-w, w, 0f, 0f)
-                        Sweep.LEFT -> listOf(w, -w, 0f, 0f)
-                        Sweep.UP -> listOf(0f, 0f, h, -h)
-                        Sweep.DOWN -> listOf(0f, 0f, -h, h)
-                    }
+                    val fromX = if (sweep == Sweep.LEFT) w else -w
                     shine.translationX = fromX
-                    shine.translationY = fromY
+                    shine.translationY = 0f
                     shine.alpha = 0.95f
-                    shine.animate().translationX(toX).translationY(toY).setDuration(520)
+                    shine.animate().translationX(-fromX).translationY(0f).setDuration(520)
                         .setInterpolator(android.view.animation.DecelerateInterpolator())
                         .withEndAction {
-                            shine.translationX = 0f; shine.translationY = 0f; shine.alpha = 0f
+                            shine.translationX = 0f; shine.alpha = 0f
                             shine.animate().alpha(0.35f).setDuration(250).start()
                         }
                         .start()

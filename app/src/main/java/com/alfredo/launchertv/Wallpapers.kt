@@ -29,8 +29,22 @@ class Wallpapers(
         fun views() = listOf(photo, fg)
     }
 
-    /** Se llama con cada foto nueva: la foto y su plan (posición del reloj, etc.), o null si no hay. */
-    var onPhotoChanged: ((Bitmap, Layouts.Entry?) -> Unit)? = null
+    /** Todo lo que necesita una foto para mostrarse, preparado de antemano en segundo plano. */
+    class Prepared(
+        val index: Int,
+        val photo: Bitmap,
+        val plan: Layouts.Entry?,
+        val fg: Bitmap?,
+        /** Foto a 1/4 de resolución para el cristal del reloj. */
+        val glass: Bitmap,
+        /** ¿Cielo claro en la zona del reloj? */
+        val bright: Boolean,
+        /** Miniatura muy difuminada para el fondo de la pantalla Apps. */
+        val blurred: Bitmap
+    )
+
+    /** Se llama con cada foto nueva, ya preparada, justo cuando empieza su fundido. */
+    var onPhotoChanged: ((Prepared) -> Unit)? = null
     /** Zoom actual de la foto (1…1,07) para que el reloj de cristal siga alineado con ella. */
     var onZoom: ((Float) -> Unit)? = null
     private val layouts = Layouts(context)
@@ -43,6 +57,11 @@ class Wallpapers(
     private var index = -1
     private var running = false
     private var zoom: ValueAnimator? = null
+    // Preparación en segundo plano de la foto siguiente: al cambiar no se decodifica nada en
+    // el hilo de pantalla, así el fundido y el movimiento del reloj arrancan sin tirones.
+    private val worker = java.util.concurrent.Executors.newSingleThreadExecutor()
+    @Volatile private var ready: Prepared? = null
+    private var preparing = -1
 
     private val next = object : Runnable {
         override fun run() {
@@ -78,10 +97,14 @@ class Wallpapers(
 
     private fun advance() {
         if (files.isEmpty()) return
-        index = (index + 1) % files.size
-        val bmp = decode(files[index]) ?: return
-        val plan = layouts[files[index]]
-        val fgBitmap = if (plan?.useFg == true) layouts.foreground(files[index], bmp) else null
+        val nextIndex = (index + 1) % files.size
+        // Lo normal: ya está preparada. La primera vez (o si no dio tiempo) se prepara aquí.
+        val p = ready?.takeIf { it.index == nextIndex } ?: prepare(nextIndex) ?: return
+        ready = null
+        index = nextIndex
+        val bmp = p.photo
+        val plan = p.plan
+        val fgBitmap = p.fg
         android.util.Log.i("LauncherTV", "fondo ${files[index]} plan=${plan != null} fg=${fgBitmap != null} top=${plan?.digitTop}")
 
         val outgoing = layers[current]
@@ -97,9 +120,44 @@ class Wallpapers(
         fade(outgoing.photo, 0f) { outgoing.photo.setImageDrawable(null) }
         fade(outgoing.fg, 0f) { outgoing.fg.setImageDrawable(null) }
         kenBurns(incoming)
-        onPhotoChanged?.invoke(bmp, plan)
+        onPhotoChanged?.invoke(p)
         val author = credits[files[index]]
         credit.text = if (author != null) context.getString(R.string.credit, author) else ""
+        prepareNextLater()
+    }
+
+    /** Prepara la foto siguiente en segundo plano (unos segundos después, cuando el fundido ya acabó). */
+    private fun prepareNextLater() {
+        val n = (index + 1) % files.size
+        if (preparing == n || ready?.index == n) return
+        preparing = n
+        handler.postDelayed({
+            worker.execute {
+                val p = prepare(n)
+                handler.post {
+                    preparing = -1
+                    if (p != null) {
+                        // Subir ya las imágenes a la gráfica, para que el primer fotograma no tarde.
+                        p.photo.prepareToDraw(); p.fg?.prepareToDraw()
+                        ready = p
+                    }
+                }
+            }
+        }, FADE_MS + 2_000L)
+    }
+
+    /** Decodifica la foto, recorta la montaña y calcula el cristal. Seguro en cualquier hilo. */
+    private fun prepare(i: Int): Prepared? {
+        val name = files[i]
+        val bmp = decode(name) ?: return null
+        val plan = layouts[name]
+        val fg = if (plan?.useFg == true) layouts.foreground(name, bmp) else null
+        val dm = context.resources.displayMetrics
+        val (glass, bright) = GlassTextView.prepareGlass(bmp, dm.widthPixels, dm.heightPixels)
+        val tiny = Bitmap.createScaledBitmap(bmp, 32, 18, true)
+        val blurred = Bitmap.createScaledBitmap(tiny, 320, 180, true)
+        tiny.recycle()
+        return Prepared(i, bmp, plan, fg, glass, plan?.bright ?: bright, blurred)
     }
 
     private fun fade(view: View, to: Float, end: (() -> Unit)?) {

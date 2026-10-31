@@ -37,7 +37,8 @@ class GlassTextView @JvmOverloads constructor(
     /** Cuánto se ve el fondo a través de las letras (0 = blanco sólido, 1 = solo fondo). */
     var glassAmount: Float = 0.55f
 
-    private val fill = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG)
+    // FILTER: el cristal se guarda a 1/4 de resolución y la gráfica lo amplía suavizado.
+    private val fill = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val gloss = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG)
     private val shadow = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG)
     private val edge = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG)
@@ -68,8 +69,9 @@ class GlassTextView @JvmOverloads constructor(
     private val screenPos = IntArray(2)
 
     init {
-        // Capa por software: permite la sombra difuminada del texto.
-        setLayerType(LAYER_TYPE_SOFTWARE, null)
+        // Se dibuja con la gráfica (aceleración por hardware): redibujar el reloj en cada
+        // fotograma mientras se mueve es barato y el movimiento sale fluido. Las sombras de
+        // texto están soportadas por hardware.
         fill.textAlign = Paint.Align.CENTER
         gloss.textAlign = Paint.Align.CENTER
         shadow.textAlign = Paint.Align.CENTER
@@ -94,39 +96,30 @@ class GlassTextView @JvmOverloads constructor(
         invalidate()
     }
 
-    /** Fondo actual (la foto completa, en coordenadas de pantalla) para "ver a través" de las letras. */
-    fun setBackdrop(photo: Bitmap?, screenW: Int, screenH: Int) {
+    /**
+     * Fondo nuevo para "ver a través" de las letras: [glass] es la foto a 1/4 de resolución
+     * (preparada en segundo plano con [prepareGlass]). El anterior se funde con este en FADE_MS.
+     */
+    fun setBackdrop(glass: Bitmap?, bright: Boolean, screenW: Int, screenH: Int) {
         this.screenW = screenW; this.screenH = screenH
-        // El fondo que había pasa a "anterior" y se desvanece; la foto de detrás hace lo mismo.
         oldBitmap?.recycle()
         oldBitmap = glassBitmap; oldShader = glassShader; oldZoom = zoom
         fadeStart = if (oldShader != null) android.os.SystemClock.uptimeMillis() else 0L
         zoom = 1f
-        glassBitmap = null
-        glassShader = null
-        if (photo != null && screenW > 0 && screenH > 0) {
-            // Versión pequeña (difuminado barato) y aclarada de la foto, estirada a la pantalla.
-            // Cristal fiel: el fondo real, apenas suavizado (1/4 de resolución), sin cambiar el color.
-            val small = Bitmap.createScaledBitmap(photo.copy(Bitmap.Config.ARGB_8888, false), screenW / 4, screenH / 4, true)
-            // Luminosidad media de la franja donde suele ir el reloj (centro, parte alta).
-            var lum = 0L; var n = 0
-            for (y in 2 until 14) for (x in 12 until 36) {
-                val c = small.getPixel(x, y)
-                lum += (Color.red(c) * 299 + Color.green(c) * 587 + Color.blue(c) * 114) / 1000; n++
-            }
-            onBright = n > 0 && lum / n > 150
-            val blurred = Bitmap.createScaledBitmap(small, screenW, screenH, true)
-            small.recycle()
-            glassBitmap = blurred
-            glassShader = BitmapShader(blurred, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
-        }
+        onBright = bright
+        glassBitmap = glass
+        glassShader = glass?.let { BitmapShader(it, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP) }
         invalidate()
     }
 
     /** Coloca el fondo [shader] de forma que cada píxel del cristal coincida con lo que hay detrás. */
-    private fun align(shader: BitmapShader, z: Float): BitmapShader {
-        // La foto se ve ampliada (Ken Burns) alrededor del centro de la pantalla: el cristal igual.
-        shaderMatrix.setScale(z, z, screenW / 2f, screenH / 2f)
+    private fun align(shader: BitmapShader, bmp: Bitmap?, z: Float): BitmapShader {
+        // El cristal está a 1/4 de resolución: primero se estira al tamaño de la pantalla…
+        val sx = if (bmp != null && bmp.width > 0) screenW.toFloat() / bmp.width else 1f
+        val sy = if (bmp != null && bmp.height > 0) screenH.toFloat() / bmp.height else 1f
+        shaderMatrix.setScale(sx, sy)
+        // …la foto se ve ampliada (Ken Burns) alrededor del centro de la pantalla: el cristal igual.
+        shaderMatrix.postScale(z, z, screenW / 2f, screenH / 2f)
         // Pasar de coordenadas de pantalla a coordenadas de esta vista (donde esté ahora mismo).
         shaderMatrix.postTranslate(-screenPos[0].toFloat(), -screenPos[1].toFloat())
         // Refracción: el fondo se ve a través del cristal ligeramente ampliado y bajado.
@@ -173,14 +166,14 @@ class GlassTextView @JvmOverloads constructor(
             getLocationOnScreen(screenPos)
             fill.colorFilter = LIGHTEN   // cristal esmerilado claro siempre, como el iPhone
             fill.alpha = 255
-            fill.shader = align(shader, zoom)
+            fill.shader = align(shader, glassBitmap, zoom)
             drawTabular(canvas, fill, x, y)
             // Fundido con el fondo anterior, al mismo ritmo que cambia la foto.
             val old = oldShader
             if (old != null) {
                 val t = (android.os.SystemClock.uptimeMillis() - fadeStart) / FADE_MS.toFloat()
                 if (t < 1f) {
-                    fill.shader = align(old, oldZoom)
+                    fill.shader = align(old, oldBitmap, oldZoom)
                     fill.alpha = (255 * (1f - t)).toInt()
                     drawTabular(canvas, fill, x, y)
                     postInvalidateOnAnimation()
@@ -218,6 +211,25 @@ class GlassTextView @JvmOverloads constructor(
     companion object {
         /** Igual que el fundido de la foto en Wallpapers. */
         const val FADE_MS = 1_600L
+
+        /**
+         * Prepara el cristal de una foto (en cualquier hilo): la foto a 1/4 de resolución, que
+         * la gráfica amplía suavizada (= el mismo difuminado de antes), y si el cielo de la
+         * zona del reloj es claro.
+         */
+        fun prepareGlass(photo: Bitmap, screenW: Int, screenH: Int): Pair<Bitmap, Boolean> {
+            val argb = photo.copy(Bitmap.Config.ARGB_8888, false)
+            val small = Bitmap.createScaledBitmap(argb, (screenW / 4).coerceAtLeast(1), (screenH / 4).coerceAtLeast(1), true)
+            if (small !== argb) argb.recycle()
+            // Luminosidad media de la franja donde suele ir el reloj (centro, parte alta).
+            var lum = 0L; var n = 0
+            val sx = small.width / 48f; val sy = small.height / 27f
+            for (y in 2 until 14) for (x in 12 until 36) {
+                val c = small.getPixel((x * sx).toInt(), (y * sy).toInt())
+                lum += (Color.red(c) * 299 + Color.green(c) * 587 + Color.blue(c) * 114) / 1000; n++
+            }
+            return small to (n > 0 && lum / n > 150)
+        }
         /** Oscurece el fondo (para cielos claros): cristal ahumado. */
         private val DARKEN = ColorMatrixColorFilter(ColorMatrix().apply {
             setSaturation(0.9f)

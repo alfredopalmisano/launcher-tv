@@ -39,7 +39,7 @@ jobs:
           pip install -q transformers
           python3 scripts/analizar_fondos.py app/src/main/assets/wallpapers app/src/main/assets/wallpapers wallpapers/preview
           mkdir -p wallpapers/cache
-          cp app/src/main/assets/wallpapers/*.jpg app/src/main/assets/wallpapers/creditos.txt wallpapers/cache/ 2>/dev/null || true
+          cp app/src/main/assets/wallpapers/*.jpg app/src/main/assets/wallpapers/*.mask.png app/src/main/assets/wallpapers/layout.json app/src/main/assets/wallpapers/creditos.txt wallpapers/cache/ 2>/dev/null || true
           cp app/src/main/assets/fonts/*.ttf wallpapers/cache/ 2>/dev/null || true
           git config user.name "github-actions"; git config user.email "actions@github.com"
           git add wallpapers/preview wallpapers/cache
