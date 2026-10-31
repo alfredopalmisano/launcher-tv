@@ -55,6 +55,7 @@ class RemoteService : Service() {
             .setSmallIcon(R.drawable.ic_app)
             .build()
         startForeground(1, n)
+        TvAdb.startInjector(this)   // dejar listo el inyector: la primera tecla ya va rápida
         startServer()
     }
 
