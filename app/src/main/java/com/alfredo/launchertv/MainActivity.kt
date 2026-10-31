@@ -44,16 +44,20 @@ class MainActivity : Activity() {
     private var dockTopPx = 0f
     private var ambient = false
     private var dockFocusPos = 0
-    private var movingPkg: String? = null
+    private var movingId: String? = null        // tarjeta que se está recolocando
+    private var movingInSystem = false          // …en Conexiones y sistema (si no, en el dock)
     private val idleToAmbient = Runnable { if (!ambient && overlay.visibility != View.VISIBLE) setAmbient(true) }
     private lateinit var overlay: View
     private lateinit var grid: RecyclerView
     private lateinit var wallpapers: Wallpapers
     private lateinit var favorites: Favorites
+    private lateinit var systemOrder: SystemOrder
 
-    private val dockAdapter = TileAdapter(DOCK_TILE_DP, false, ::open) { showAppMenu(it, fromDock = true) }
+    // El dock es un carrusel: tras la última tarjeta vuelve la primera (si hay más de las que caben).
+    private val dockAdapter = TileAdapter(DOCK_TILE_DP, false, ::open,
+        onLongClick = { showAppMenu(it, fromDock = true) }, loopMin = DOCK_VISIBLE)
     private val recentsAdapter = TileAdapter(PROGRAM_TILE_DP, true, ::open) { false }
-    private val systemAdapter = TileAdapter(ROW_TILE_DP, true, ::open) { false }
+    private val systemAdapter = TileAdapter(ROW_TILE_DP, true, ::open) { showSystemMenu(it) }
     private val gridAdapter = TileAdapter(GRID_TILE_DP, true, ::open) { showAppMenu(it, fromDock = false) }
 
     private var apps: List<Tile.App> = emptyList()
@@ -98,6 +102,7 @@ class MainActivity : Activity() {
         recentsRow = addRow(R.string.row_recents, recentsAdapter)
         grid = findViewById(R.id.grid)
         favorites = Favorites(this)
+        systemOrder = SystemOrder(this)
 
         val dm = resources.displayMetrics
         clock.typeface = Fonts.clock(this)
@@ -201,12 +206,12 @@ class MainActivity : Activity() {
             if (code != KeyEvent.KEYCODE_BACK && code != KeyEvent.KEYCODE_HOME) { setAmbient(false); return true }
         }
 
-        // Modo mover: ← → recolocan la app; OK suelta; Atrás cancela.
-        val pkg = movingPkg
-        if (pkg != null) {
+        // Modo mover: ← → recolocan la tarjeta; OK suelta; Atrás cancela.
+        val mid = movingId
+        if (mid != null) {
             when (code) {
-                KeyEvent.KEYCODE_DPAD_LEFT -> { if (favorites.move(pkg, -1)) refreshDock(focus = "app:$pkg"); return true }
-                KeyEvent.KEYCODE_DPAD_RIGHT -> { if (favorites.move(pkg, +1)) refreshDock(focus = "app:$pkg"); return true }
+                KeyEvent.KEYCODE_DPAD_LEFT -> { moveBy(mid, -1); return true }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> { moveBy(mid, +1); return true }
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_BACK -> { stopMoving(); return true }
                 KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> return true
             }
@@ -231,28 +236,65 @@ class MainActivity : Activity() {
         if (on) {
             // Recordar en qué app estaba el cursor para volver exactamente ahí.
             val focused = dock.focusedChild
-            if (focused != null) dockFocusPos = dock.getChildAdapterPosition(focused).coerceAtLeast(0)
+            if (focused != null) dockFocusPos = dock.getChildAdapterPosition(focused)
             rowsScroll.scrollTo(0, 0)
         }
         rowsScroll.animate().alpha(if (on) 0f else 1f).translationY(if (on) 40 * d else 0f).setDuration(350).withEndAction {
             if (!on) dock.post {
-                (dock.layoutManager?.findViewByPosition(dockFocusPos) ?: dock.getChildAt(0))?.requestFocus()
+                val v = if (dockFocusPos >= 0) dock.layoutManager?.findViewByPosition(dockFocusPos) else null
+                if (v != null) v.requestFocus() else focusFirstVisible(dock)
             }
         }.start()
     }
 
-    private fun startMoving(tile: Tile.App) {
-        movingPkg = tile.packageName
-        dockAdapter.movingId = tile.id
+    private fun startMoving(tile: Tile, inSystem: Boolean) {
+        movingId = tile.id
+        movingInSystem = inSystem
+        (if (inSystem) systemAdapter else dockAdapter).movingId = tile.id
         toast(getString(R.string.move_hint))
-        refreshDock(focus = tile.id)
+        if (inSystem) focusTile(systemRow, systemAdapter, tile.id) else refreshDock(focus = tile.id)
     }
 
     private fun stopMoving() {
-        val id = movingPkg?.let { "app:$it" }
-        movingPkg = null
+        val id = movingId ?: return
+        val inSystem = movingInSystem
+        movingId = null
         dockAdapter.movingId = null
-        if (id != null) refreshDock(focus = id)
+        systemAdapter.movingId = null
+        if (inSystem) focusTile(systemRow, systemAdapter, id) else refreshDock(focus = id)
+    }
+
+    /** Recoloca la tarjeta que se está moviendo una posición a la izquierda (−1) o derecha (+1). */
+    private fun moveBy(id: String, delta: Int) {
+        if (movingInSystem) {
+            if (systemOrder.move(systemAdapter.ids(), id, delta)) {
+                refreshSystem()
+                focusTile(systemRow, systemAdapter, id)
+            }
+        } else {
+            if (favorites.move(id.removePrefix("app:"), delta)) refreshDock(focus = id)
+        }
+    }
+
+    /** Pone el foco en la tarjeta [id] de [row] (la copia más cercana, si es un carrusel). */
+    private fun focusTile(row: RecyclerView, adapter: TileAdapter, id: String) {
+        val lm = row.layoutManager as LinearLayoutManager
+        val near = row.focusedChild?.let { row.getChildAdapterPosition(it) }?.takeIf { it >= 0 }
+            ?: lm.findFirstVisibleItemPosition().takeIf { it >= 0 } ?: adapter.loopStart()
+        val pos = adapter.positionNear(id, near)
+        if (pos < 0) return
+        row.post {
+            val v = lm.findViewByPosition(pos)
+            if (v != null) v.requestFocus()
+            else { lm.scrollToPosition(pos); row.post { lm.findViewByPosition(pos)?.requestFocus() } }
+        }
+    }
+
+    /** Foco en la primera tarjeta que se ve entera de la fila. */
+    private fun focusFirstVisible(row: RecyclerView) {
+        val lm = row.layoutManager as LinearLayoutManager
+        val pos = lm.findFirstCompletelyVisibleItemPosition()
+        (if (pos >= 0) lm.findViewByPosition(pos) else row.getChildAt(0))?.requestFocus()
     }
 
     private fun hideSystemUi() {
@@ -327,6 +369,10 @@ class MainActivity : Activity() {
         recentsAdapter.submit(programs)
         (recentsRow.parent as View).visibility = if (programs.isEmpty()) View.GONE else View.VISIBLE
 
+        refreshSystem()
+    }
+
+    private fun refreshSystem() {
         val sys = ArrayList<Tile>()
         sys.addAll(InputsRepository.loadConnected(this))
         sys.add(Tile.AirPlay)
@@ -337,7 +383,7 @@ class MainActivity : Activity() {
         sys.add(Tile.Action("remote", getString(R.string.remote), R.drawable.ic_phone))
         sys.add(Tile.Store)
         sys.add(Tile.SettingsTile)
-        systemAdapter.submit(sys)
+        systemAdapter.submit(systemOrder.apply(sys))
     }
 
     private fun refreshDock(focus: String? = null) {
@@ -345,13 +391,17 @@ class MainActivity : Activity() {
         val tiles = ArrayList<Tile>()
         tiles.addAll(favorites.get(apps))
         tiles.add(Tile.AllApps)
+        val sizeBefore = dockAdapter.size
         dockAdapter.submit(tiles)
+        if (sizeBefore != tiles.size) {
+            // Cambió el número de apps: colocar el carrusel en su vuelta del medio, alineado a las columnas.
+            (dock.layoutManager as LinearLayoutManager).scrollToPositionWithOffset(dockAdapter.loopStart(), 0)
+        }
         refreshRows()
         if (focus != null) {
-            val pos = dockAdapter.indexOf(focus)
-            if (pos >= 0) dock.post { dock.layoutManager?.findViewByPosition(pos)?.requestFocus() }
+            focusTile(dock, dockAdapter, focus)
         } else if (!hadFocus && overlay.visibility != View.VISIBLE) {
-            dock.post { dock.getChildAt(0)?.requestFocus() }
+            dock.post { focusFirstVisible(dock) }
         }
     }
 
@@ -507,7 +557,7 @@ class MainActivity : Activity() {
                 toast(getString(R.string.removed_from_dock, tile.label)); refreshDock()
             }
             if (fromDock) {
-                item(R.string.menu_move) { startMoving(tile) }
+                item(R.string.menu_move) { startMoving(tile, inSystem = false) }
             }
         } else {
             item(R.string.menu_add_dock) {
@@ -532,6 +582,16 @@ class MainActivity : Activity() {
         return true
     }
 
+    /** Menú al mantener pulsado OK en Conexiones y sistema: recolocar la tarjeta. */
+    private fun showSystemMenu(tile: Tile): Boolean {
+        val labels = arrayOf(getString(R.string.menu_move), getString(R.string.menu_cancel))
+        AlertDialog.Builder(this, R.style.Theme_Launcher_Dialog)
+            .setTitle(tile.label)
+            .setItems(labels) { _, which -> if (which == 0) startMoving(tile, inSystem = true) }
+            .show()
+        return true
+    }
+
     private fun showAllApps() {
         overlay.alpha = 0f
         overlay.visibility = View.VISIBLE
@@ -542,13 +602,14 @@ class MainActivity : Activity() {
     private fun hideAllApps() {
         overlay.animate().alpha(0f).setDuration(160).withEndAction {
             overlay.visibility = View.GONE
-            dock.post { dock.getChildAt(0)?.requestFocus() }
+            dock.post { focusFirstVisible(dock) }
         }.start()
     }
 
     companion object {
         private const val DOCK_TILE_DP = 152      // 5 × (152 + 24) = 880 = 960 − 48 − 16 − 16
         private const val DOCK_PAD_DP = 8
+        private const val DOCK_VISIBLE = 5      // tarjetas que caben en el estante
         private const val GRID_TILE_DP = 144
         private const val ROW_TILE_DP = 150
         private const val PROGRAM_TILE_DP = 200

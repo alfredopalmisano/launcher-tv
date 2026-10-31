@@ -16,10 +16,37 @@ class TileAdapter(
     private val tileWidthDp: Int,
     private val showLabels: Boolean,
     private val onClick: (Tile) -> Unit,
-    private val onLongClick: (Tile) -> Boolean
+    private val onLongClick: (Tile) -> Boolean,
+    /** Carrusel infinito: tras la última tarjeta vuelve la primera (solo si hay más de [loopMin]). */
+    private val loopMin: Int = Int.MAX_VALUE
 ) : RecyclerView.Adapter<TileAdapter.Holder>() {
 
     private val items = ArrayList<Tile>()
+
+    /** ¿Está en modo carrusel ahora mismo? */
+    val looping: Boolean get() = items.size > loopMin
+
+    /** Posición "real" (0…n-1) de una posición del adaptador. */
+    fun realIndex(position: Int): Int = if (items.isEmpty()) -1 else position.mod(items.size)
+
+    fun itemAt(position: Int): Tile? = if (position < 0 || items.isEmpty()) null else items[realIndex(position)]
+
+    /** Posición del carrusel donde empieza la vuelta del medio (la tarjeta 0 de esa vuelta). */
+    fun loopStart(): Int = if (looping) items.size * (LOOP_TURNS / 2) else 0
+
+    /**
+     * Posición del adaptador de la tarjeta [id] más cercana a [near] (en el carrusel hay muchas copias).
+     * -1 si no está.
+     */
+    fun positionNear(id: String, near: Int): Int {
+        val i = items.indexOfFirst { it.id == id }
+        if (i < 0) return -1
+        if (!looping) return i
+        val n = items.size
+        val base = near - near.mod(n)
+        return listOf(base - n + i, base + i, base + n + i).filter { it in 0 until itemCount }
+            .minByOrNull { kotlin.math.abs(it - near) } ?: i
+    }
 
     /** Tarjeta que se está recolocando (modo mover). */
     var movingId: String? = null
@@ -31,9 +58,14 @@ class TileAdapter(
         notifyDataSetChanged()
     }
 
+    fun ids(): List<String> = items.map { it.id }
+
+    /** Número de tarjetas distintas (sin contar las copias del carrusel). */
+    val size: Int get() = items.size
+
     fun indexOf(id: String): Int = items.indexOfFirst { it.id == id }
 
-    override fun getItemCount(): Int = items.size
+    override fun getItemCount(): Int = if (looping) items.size * LOOP_TURNS else items.size
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
         val v = LayoutInflater.from(parent.context).inflate(R.layout.item_tile, parent, false)
@@ -48,7 +80,7 @@ class TileAdapter(
     }
 
     override fun onBindViewHolder(holder: Holder, position: Int) {
-        holder.bind(items[position])
+        holder.bind(items[realIndex(position)])
     }
 
     inner class Holder(view: View) : RecyclerView.ViewHolder(view) {
@@ -65,8 +97,8 @@ class TileAdapter(
         init {
             card.clipToOutline = true
             label.typeface = Fonts.medium(view.context)
-            view.setOnClickListener { items.getOrNull(bindingAdapterPosition)?.let(onClick) }
-            view.setOnLongClickListener { items.getOrNull(bindingAdapterPosition)?.let(onLongClick) ?: false }
+            view.setOnClickListener { itemAt(bindingAdapterPosition)?.let(onClick) }
+            view.setOnLongClickListener { itemAt(bindingAdapterPosition)?.let(onLongClick) ?: false }
             view.setOnFocusChangeListener { _, focused ->
                 val scale = if (focused) 1.12f else 1f
                 card.animate().scaleX(scale).scaleY(scale).translationZ(if (focused) 18f else 0f)
@@ -84,7 +116,7 @@ class TileAdapter(
                     shine.animate().alpha(0f).setDuration(150).start()
                 }
                 if (showLabels) label.animate().alpha(if (focused) 1f else 0f).translationY(if (focused) 0f else -6f).setDuration(180).start()
-                val tile = items.getOrNull(bindingAdapterPosition)
+                val tile = itemAt(bindingAdapterPosition)
                 card.foreground = when {
                     tile != null && tile.id == movingId -> movingDrawable
                     focused -> focusDrawable
@@ -139,5 +171,10 @@ class TileAdapter(
             icon.imageTintList = white
             icon.visibility = View.VISIBLE
         }
+    }
+
+    companion object {
+        /** Vueltas del carrusel: de sobra para no llegar nunca al final (y barato: solo es un número). */
+        const val LOOP_TURNS = 400
     }
 }
