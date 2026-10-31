@@ -11,8 +11,8 @@ android {
         applicationId = "com.alfredo.launchertv"
         minSdk = 28
         targetSdk = 28
-        versionCode = 28
-        versionName = "0.28"
+        versionCode = 29
+        versionName = "0.29"
     }
 
     // Firma fija para poder actualizar el launcher sin desinstalarlo.

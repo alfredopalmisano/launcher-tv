@@ -31,6 +31,8 @@ class Wallpapers(
 
     /** Se llama con cada foto nueva: la foto y su plan (posición del reloj, etc.), o null si no hay. */
     var onPhotoChanged: ((Bitmap, Layouts.Entry?) -> Unit)? = null
+    /** Zoom actual de la foto (1…1,07) para que el reloj de cristal siga alineado con ella. */
+    var onZoom: ((Float) -> Unit)? = null
     private val layouts = Layouts(context)
 
     private val layers = listOf(Layer(photoA, fgA), Layer(photoB, fgB))
@@ -119,6 +121,7 @@ class Wallpapers(
             addUpdateListener { a ->
                 val s = a.animatedValue as Float
                 for (v in layer.views()) { v.scaleX = s; v.scaleY = s }
+                onZoom?.invoke(s)
             }
             start()
         }

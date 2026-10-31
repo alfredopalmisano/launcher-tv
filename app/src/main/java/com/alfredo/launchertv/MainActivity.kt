@@ -111,6 +111,7 @@ class MainActivity : Activity() {
             findViewById(R.id.wallB), findViewById(R.id.fgB),
             findViewById(R.id.credit))
         val overlayBg = findViewById<ImageView>(R.id.overlayBg)
+        wallpapers.onZoom = { z -> clock.setZoom(z) }
         wallpapers.onPhotoChanged = { photo, plan ->
             clock.setBackdrop(photo, dm.widthPixels, dm.heightPixels)
             if (plan != null) clock.setBright(plan.bright)
@@ -295,9 +296,10 @@ class MainActivity : Activity() {
                     setPadding((8 * d).toInt(), (6 * d).toInt(), (8 * d).toInt(), (6 * d).toInt())
                     addView(list, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
                 }
-                list.setPadding((16 * d).toInt(), 0, (16 * d).toInt(), 0)
-                list.isHorizontalFadingEdgeEnabled = true
-                list.setFadingEdgeLength((56 * d).toInt())
+                // Caben exactamente DOCK_VISIBLE tarjetas en el estante: al mover el foco, la fila se
+                // desplaza de tarjeta en tarjeta y nunca queda una cortada en el borde.
+                // 960 dp de pantalla − 2×24 margen − 2×8 relleno − 2×DOCK_PAD = DOCK_VISIBLE × (tarjeta + 24).
+                list.setPadding((DOCK_PAD_DP * d).toInt(), 0, (DOCK_PAD_DP * d).toInt(), 0)
                 addView(shelf, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                     marginStart = (24 * d).toInt(); marginEnd = (24 * d).toInt()
                 })
@@ -413,7 +415,12 @@ class MainActivity : Activity() {
         val digitTop = (plan?.digitTop?.toFloat()?.times(screenH.toFloat() / photoH) ?: (48 * d)).coerceIn(24 * d, maxDigitTop)
         val viewTop = digitTop - clock.digitTopOffset()
         android.util.Log.i(TAG, "reloj: digitTop=%.0f viewTop=%.0f fg=%b".format(digitTop, viewTop, plan?.useFg == true))
-        box.animate().translationY(viewTop - 72 * d).setDuration(1200).start()
+        // El reloj es una capa cacheada: hay que redibujarlo mientras se mueve para que el cristal
+        // muestre lo que hay detrás en su posición actual, no en la anterior.
+        box.animate().translationY(viewTop - 72 * d).setDuration(GlassTextView.FADE_MS)
+            .setUpdateListener { clock.invalidate() }
+            .withEndAction { clock.invalidate() }
+            .start()
     }
 
     /** Mando desde el móvil: muestra la dirección a abrir en el iPhone. */
@@ -536,7 +543,8 @@ class MainActivity : Activity() {
     }
 
     companion object {
-        private const val DOCK_TILE_DP = 168
+        private const val DOCK_TILE_DP = 152      // 5 × (152 + 24) = 880 = 960 − 48 − 16 − 16
+        private const val DOCK_PAD_DP = 8
         private const val GRID_TILE_DP = 144
         private const val ROW_TILE_DP = 150
         private const val PROGRAM_TILE_DP = 200

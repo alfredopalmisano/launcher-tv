@@ -59,6 +59,11 @@ class GlassTextView @JvmOverloads constructor(
 
     private var glassBitmap: Bitmap? = null
     private var glassShader: BitmapShader? = null
+    // Fondo anterior, que se funde con el nuevo durante FADE_MS (igual que la foto).
+    private var oldBitmap: Bitmap? = null
+    private var oldShader: BitmapShader? = null
+    private var oldZoom = 1f
+    private var fadeStart = 0L
     private val shaderMatrix = Matrix()
     private val screenPos = IntArray(2)
 
@@ -78,9 +83,25 @@ class GlassTextView @JvmOverloads constructor(
         typeface = typeface
     }
 
+    private var zoom = 1f
+    private var screenW = 0
+    private var screenH = 0
+
+    /** Zoom de la foto de fondo (Ken Burns), centrado en la pantalla. Redibuja solo si cambia lo bastante. */
+    fun setZoom(z: Float) {
+        if (kotlin.math.abs(z - zoom) < 0.0015f) return
+        zoom = z
+        invalidate()
+    }
+
     /** Fondo actual (la foto completa, en coordenadas de pantalla) para "ver a través" de las letras. */
     fun setBackdrop(photo: Bitmap?, screenW: Int, screenH: Int) {
-        glassBitmap?.recycle()
+        this.screenW = screenW; this.screenH = screenH
+        // El fondo que había pasa a "anterior" y se desvanece; la foto de detrás hace lo mismo.
+        oldBitmap?.recycle()
+        oldBitmap = glassBitmap; oldShader = glassShader; oldZoom = zoom
+        fadeStart = if (oldShader != null) android.os.SystemClock.uptimeMillis() else 0L
+        zoom = 1f
         glassBitmap = null
         glassShader = null
         if (photo != null && screenW > 0 && screenH > 0) {
@@ -100,6 +121,19 @@ class GlassTextView @JvmOverloads constructor(
             glassShader = BitmapShader(blurred, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
         }
         invalidate()
+    }
+
+    /** Coloca el fondo [shader] de forma que cada píxel del cristal coincida con lo que hay detrás. */
+    private fun align(shader: BitmapShader, z: Float): BitmapShader {
+        // La foto se ve ampliada (Ken Burns) alrededor del centro de la pantalla: el cristal igual.
+        shaderMatrix.setScale(z, z, screenW / 2f, screenH / 2f)
+        // Pasar de coordenadas de pantalla a coordenadas de esta vista (donde esté ahora mismo).
+        shaderMatrix.postTranslate(-screenPos[0].toFloat(), -screenPos[1].toFloat())
+        // Refracción: el fondo se ve a través del cristal ligeramente ampliado y bajado.
+        shaderMatrix.postScale(1.025f, 1.025f, width / 2f, height / 2f)
+        shaderMatrix.postTranslate(0f, 8f)
+        shader.setLocalMatrix(shaderMatrix)
+        return shader
     }
 
     /** Ancho de celda para las cifras (todas iguales, como en el iPhone) y para los dos puntos. */
@@ -137,15 +171,23 @@ class GlassTextView @JvmOverloads constructor(
         val shader = glassShader
         if (shader != null) {
             getLocationOnScreen(screenPos)
-            shaderMatrix.reset()
-            // Refracción: el fondo se ve a través del cristal ligeramente desplazado y ampliado.
-            shaderMatrix.postScale(1.025f, 1.025f, (width / 2f), (height / 2f))
-            shaderMatrix.postTranslate(-screenPos[0].toFloat(), -screenPos[1].toFloat() + 8f)
-            shader.setLocalMatrix(shaderMatrix)
-            fill.shader = shader
             fill.colorFilter = LIGHTEN   // cristal esmerilado claro siempre, como el iPhone
             fill.alpha = 255
+            fill.shader = align(shader, zoom)
             drawTabular(canvas, fill, x, y)
+            // Fundido con el fondo anterior, al mismo ritmo que cambia la foto.
+            val old = oldShader
+            if (old != null) {
+                val t = (android.os.SystemClock.uptimeMillis() - fadeStart) / FADE_MS.toFloat()
+                if (t < 1f) {
+                    fill.shader = align(old, oldZoom)
+                    fill.alpha = (255 * (1f - t)).toInt()
+                    drawTabular(canvas, fill, x, y)
+                    postInvalidateOnAnimation()
+                } else {
+                    oldShader = null; oldBitmap?.recycle(); oldBitmap = null
+                }
+            }
             // Velo para que siempre se lea: blanco sobre fondos oscuros, oscuro sobre cielos claros.
             fill.shader = null
             fill.colorFilter = null
@@ -174,6 +216,8 @@ class GlassTextView @JvmOverloads constructor(
     }
 
     companion object {
+        /** Igual que el fundido de la foto en Wallpapers. */
+        const val FADE_MS = 1_600L
         /** Oscurece el fondo (para cielos claros): cristal ahumado. */
         private val DARKEN = ColorMatrixColorFilter(ColorMatrix().apply {
             setSaturation(0.9f)
