@@ -539,8 +539,8 @@ class MainActivity : Activity() {
     private fun refreshDock(focus: String? = null) {
         val hadFocus = dock.hasFocus()
         val tiles = ArrayList<Tile>()
+        tiles.add(Tile.AllApps)              // "Apps" va primero en el dock (gusto de Alfredo)
         tiles.addAll(favorites.get(apps))
-        tiles.add(Tile.AllApps)
         submitRow(dock, dockAdapter, tiles)
         refreshRows()
         if (focus != null) {
