@@ -133,10 +133,19 @@ Repositorio `launcher-tv`, Kotlin, `minSdk 28`, `targetSdk 28`. Paquete `com.alf
 | 0.33 | **Dock en carrusel** (tras la última tarjeta sigue la primera, si hay más de 5) y **Mover en Conexiones y sistema** (`SystemOrder.kt`, se guarda el orden) |
 | 0.34 | Conexiones y sistema alineada con el dock: tarjetas de 152 dp en las mismas columnas (52 dp + n×176) |
 | 0.35 | **Mando del móvil rápido**: conexión ADB persistente y `KeyInjector` (proceso `app_process` que se queda arrancado e inyecta teclas, como scrcpy); si falla, vuelve a `input keyevent` |
+| 0.36 | Carrusel en todas las filas, ← → gestionadas por el launcher (foco estable pulsando rápido), brillo según la dirección |
+| 0.37–0.38 | Foto siguiente preparada en segundo plano, reloj por GPU, fundido sin bajón de brillo, cristal con la misma curva que la foto |
+| 0.39–0.43 | **Medido en la tele** (`medir_fluidez.sh`, `medir_piezas.sh`): reposo ~38 fps → 0 redibujos; cambio de foto 20→30 fps. Sin capas de montaña (el reloj se recorta con la máscara), sin refracción (cristal exacto, ½ res.), foto 07 por encima de la cumbre, reloj pre-renderizado (A8 + sombra + brillo una vez por minuto). La 0.43 (degradado dentro de la foto) se revirtió: se veía peor |
+| 0.44 | Efecto 3D al enfocar (inclinación 7° + rebote), clic sintetizado, zoom lento de fotos a 5 actualizaciones/s, Atrás: filas → dock → imágenes; imágenes solo se salen con ↓ |
+| 0.45 | **Analizado con grabaciones de pantalla** (`grabar_animaciones.sh`): reflejo sin bordes (`ShineDrawable`), icono de extremo sin cortar, apertura de apps con el icono creciendo y fundiendo a negro; **modo noche** (`Night.kt`): con temporizador de Dormir `picture_backlight`=10 y fotos 38 % más oscuras, al quitarlo vuelve al brillo anterior; clic al 15 % |
+| 0.46 | La capa negra de la apertura ya no puede quedarse encima al volver |
 
 ---
 
 ## 4. Pendiente / ideas acordadas
+- **31-oct mañana**: Alfredo nota "todo en la tele mucho más rápido" tras quitar los redibujos continuos. Antes de tocar algo que no ha pedido, **preguntarle**.
+- **Carabobo FC**: falta el vídeo del reel (grabación de pantalla del iPhone) y saber qué envía el botón Mi (`boton_mi.sh` salió vacío). Fotos en `~/Desktop/LauncherTV/carabobo/fotos` (no van al repo: es público).
+- Herramientas nuevas: `medir_fluidez.sh`, `medir_piezas.sh` (interruptores por adb, se reinician solos), `grabar_animaciones.sh` (screenrecord), `buscar_brillo.sh`, `rescate.sh`.
 - **Hecho y probado por Alfredo (31-oct madrugada)**: Dormir con permiso ADB ✅, AirPlay ✅ (le gusta; algo lento, **no cambiarlo**), mando web ✅ pero lento → arreglado en 0.35, **falta confirmar en la tele que ya va rápido**. Reloj y dock: "perfecto" con la 0.32.
 - **Probar 0.35**: carrusel del dock, Mover en Conexiones, alineación de filas, velocidad del mando.
 - **Mañana: botón Mi con tema del Carabobo FC** (lo pidió para mañana).
