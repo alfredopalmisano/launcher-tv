@@ -95,6 +95,10 @@ class GlassTextView @JvmOverloads constructor(
         typeface = typeface
     }
 
+    /** Interruptores para medir cuánto cuesta cada parte (solo desde adb, ver MainActivity.debug). */
+    var debugNoShadow = false
+    var debugNoMask = false
+
     private var zoom = 1f
     private var screenW = 0
     private var screenH = 0
@@ -172,11 +176,11 @@ class GlassTextView @JvmOverloads constructor(
         // Progreso del cambio de foto (misma curva que el fundido de la foto); 1 = sin cambio.
         val e = if (fadeStart > 0L) fadeCurve((android.os.SystemClock.uptimeMillis() - fadeStart) / FADE_MS.toFloat()) else 1f
         // Con montaña delante, el reloj se dibuja en una capa aparte para poder borrarle esa zona.
-        val masked = maskShader != null || (oldMaskShader != null && e < 1f)
+        val masked = !debugNoMask && (maskShader != null || (oldMaskShader != null && e < 1f))
         val layer = if (masked) canvas.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null) else -1
 
         // 1) Sombra suave.
-        drawTabular(canvas, shadow, x, y)
+        if (!debugNoShadow) drawTabular(canvas, shadow, x, y)
 
         // 2) Relleno: fondo difuminado y aclarado, alineado con lo que hay detrás.
         val shader = glassShader

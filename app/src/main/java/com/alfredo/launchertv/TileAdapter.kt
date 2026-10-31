@@ -80,6 +80,7 @@ class TileAdapter(
     }
 
     override fun onBindViewHolder(holder: Holder, position: Int) {
+        holder.itemView.findViewById<View>(R.id.card).elevation = if (noElevation) 0f else holder.itemView.resources.displayMetrics.density * 6
         holder.bind(items[realIndex(position)])
     }
 
@@ -190,6 +191,8 @@ class TileAdapter(
 
     companion object {
         var sweep = Sweep.RIGHT
+        /** Prueba de rendimiento: tarjetas sin sombra de elevación. */
+        var noElevation = false
         /** Vueltas del carrusel: de sobra para no llegar nunca al final (y barato: solo es un número). */
         const val LOOP_TURNS = 400
     }

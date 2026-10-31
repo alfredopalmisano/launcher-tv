@@ -72,6 +72,32 @@ class MainActivity : Activity() {
         }
     }
 
+    /**
+     * Interruptores de medida, solo desde el Mac (adb):
+     *   am broadcast -a com.alfredo.launchertv.DEBUG --es off "scrim,filas,reloj,mascara,sombra,tarjetas,raiz" --ez next true
+     * "off" apaga esas piezas (vacío = todo encendido); next=true cambia de foto al momento.
+     * Solo lo puede enviar quien tenga el permiso DUMP (la shell de adb), no otras apps.
+     */
+    private val debugReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val off = (intent.getStringExtra("off") ?: "").split(',').map { it.trim() }.toSet()
+            findViewById<View>(R.id.scrim).visibility = if ("scrim" in off) View.INVISIBLE else View.VISIBLE
+            rowsScroll.visibility = if ("filas" in off) View.INVISIBLE else View.VISIBLE
+            clockBox.visibility = if ("reloj" in off) View.INVISIBLE else View.VISIBLE
+            clock.debugNoMask = "mascara" in off
+            clock.debugNoShadow = "sombra" in off
+            clock.invalidate()
+            if (TileAdapter.noElevation != ("tarjetas" in off)) {
+                TileAdapter.noElevation = "tarjetas" in off
+                dockAdapter.notifyDataSetChanged(); systemAdapter.notifyDataSetChanged(); recentsAdapter.notifyDataSetChanged()
+            }
+            (findViewById<ViewGroup>(android.R.id.content).getChildAt(0)).setBackgroundColor(
+                if ("raiz" in off) android.graphics.Color.TRANSPARENT else android.graphics.Color.BLACK)
+            android.util.Log.i(TAG, "debug: off=$off next=${intent.getBooleanExtra("next", false)}")
+            if (intent.getBooleanExtra("next", false)) handler.postDelayed({ wallpapers.nextNow() }, 400)
+        }
+    }
+
     private val packageReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) { reload() }
     }
@@ -169,6 +195,7 @@ class MainActivity : Activity() {
             addDataScheme("package")
         })
         InputsRepository.manager(this)?.registerCallback(inputCallback, handler)
+        registerReceiver(debugReceiver, IntentFilter("com.alfredo.launchertv.DEBUG"), android.Manifest.permission.DUMP, null)
         refreshDock()
     }
 
@@ -178,6 +205,7 @@ class MainActivity : Activity() {
         handler.removeCallbacks(idleToAmbient)
         wallpapers.stop()
         try { unregisterReceiver(packageReceiver) } catch (e: Exception) { }
+        try { unregisterReceiver(debugReceiver) } catch (e: Exception) { }
         try { InputsRepository.manager(this)?.unregisterCallback(inputCallback) } catch (e: Exception) { }
     }
 

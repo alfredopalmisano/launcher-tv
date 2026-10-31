@@ -85,6 +85,14 @@ class Wallpapers(
         } catch (e: Exception) { emptyMap() }
     }
 
+    /** Cambia de foto ya (para las medidas) y reinicia la cuenta de 40 s. */
+    fun nextNow() {
+        if (!running) return
+        handler.removeCallbacks(next)
+        advance()
+        handler.postDelayed(next, INTERVAL_MS)
+    }
+
     fun start() {
         if (running) return
         running = true
