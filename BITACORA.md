@@ -126,17 +126,28 @@ Repositorio `launcher-tv`, Kotlin, `minSdk 28`, `targetSdk 28`. Paquete `com.alf
 | 0.25–0.26 | Reloj **cristal real** (color exacto de detrás, celdas tabulares, sin rayas), máscara LA (arreglo: la montaña tapaba todo el reloj), borde fino adaptativo |
 | 0.27 | **Dormir y Reiniciar por ADB interno** (AdbLib), tile AirPlay abre el receptor de código abierto |
 | 0.28 | **Mando web para el iPhone** (puerto 8080, PIN, solo red local), tile Mando, arranque al encender |
+| 0.29 | Cristal del reloj **alineado de verdad**: se redibuja mientras el reloj se mueve y sigue el zoom Ken Burns (antes enseñaba el fondo de la posición anterior); el cristal se funde en 1,6 s con la foto; dock con 5 tarjetas exactas de 152 dp; estante más visible |
+| 0.30 | ❌ **Rota**: medir el estante en tiempo real llamaba a `notifyDataSetChanged` mientras Android medía la lista → la app se cerraba en bucle (pantalla negra, Home sin respuesta). Confirmado con el logcat de `rescate.sh` |
+| 0.31 | Vuelta al código de la 0.29 |
+| 0.32 | El dock recorta lo que queda fuera del estante (`clipToPadding/clipChildren`): ya no asoman trocitos de las vecinas. Geometría simulada antes en todas las posiciones |
+| 0.33 | **Dock en carrusel** (tras la última tarjeta sigue la primera, si hay más de 5) y **Mover en Conexiones y sistema** (`SystemOrder.kt`, se guarda el orden) |
+| 0.34 | Conexiones y sistema alineada con el dock: tarjetas de 152 dp en las mismas columnas (52 dp + n×176) |
+| 0.35 | **Mando del móvil rápido**: conexión ADB persistente y `KeyInjector` (proceso `app_process` que se queda arrancado e inyecta teclas, como scrcpy); si falla, vuelve a `input keyevent` |
 
 ---
 
 ## 4. Pendiente / ideas acordadas
-- **Probar en la tele** (mañana): 0.28, Dormir con el permiso ADB, AirPlay (paso 6), mando web. Ajustar el brillo/velo del reloj si Alfredo lo ve demasiado claro u oscuro en alguna foto (`glassAmount` en MainActivity, +14 en GlassTextView).
+- **Hecho y probado por Alfredo (31-oct madrugada)**: Dormir con permiso ADB ✅, AirPlay ✅ (le gusta; algo lento, **no cambiarlo**), mando web ✅ pero lento → arreglado en 0.35, **falta confirmar en la tele que ya va rápido**. Reloj y dock: "perfecto" con la 0.32.
+- **Probar 0.35**: carrusel del dock, Mover en Conexiones, alineación de filas, velocidad del mando.
+- **Mañana: botón Mi con tema del Carabobo FC** (lo pidió para mañana).
+- Lección: **nunca** llamar a `notify*` de un adaptador desde un listener de layout/medida ni desde `onCreateViewHolder`. Antes de publicar cambios de UI, simular la geometría/lógica aquí.
+- Rescate si la tele queda en negro: `bash ~/Desktop/LauncherTV/rescate.sh` (reactiva el inicio de Google, guarda errores, reinstala la última versión); después `paso4_activar_launcher.sh` para volver al nuestro.
 - **Botón Mi** → pantalla propia con tema del **Carabobo FC** (PatchWall está desactivado; hay que ver qué intent lanza el botón: `adb shell getevent` / logcat al pulsarlo).
 - **Mando del Fire TV**: decidir entre las opciones de la sección 6.
 - Limpieza de código: quitar `RecentsRepository.kt` (ya no se usa); `Sleep.kt` conserva el camino device admin por si acaso.
 - Comprobar que Continuar viendo trae contenido tras conceder `READ_TV_LISTINGS` (en `diag.txt`, sección Watch Next).
 - Idea: código QR en el diálogo del tile Mando para no teclear la dirección.
-- Idea: elegir fondos desde la tele; tiempo meteorológico en modo ambiente.
+- Idea: elegir fondos desde la tele. (El tiempo en modo ambiente: Alfredo no mostró interés.)
 
 ## 5. Cosas a recordar
 - Mientras un script trabaja, no escribir en Terminal (lo escrito se ejecuta después).
