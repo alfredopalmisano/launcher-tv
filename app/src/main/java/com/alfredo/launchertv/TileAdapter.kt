@@ -16,9 +16,9 @@ class TileAdapter(
     private val tileWidthDp: Int,
     private val showLabels: Boolean,
     private val onClick: (Tile) -> Unit,
-    private val onLongClick: (Tile) -> Boolean,
     /** Carrusel infinito: tras la última tarjeta vuelve la primera (solo si hay más de [loopMin]). */
-    private val loopMin: Int = Int.MAX_VALUE
+    private val loopMin: Int = Int.MAX_VALUE,
+    private val onLongClick: (Tile) -> Boolean
 ) : RecyclerView.Adapter<TileAdapter.Holder>() {
 
     private val items = ArrayList<Tile>()
