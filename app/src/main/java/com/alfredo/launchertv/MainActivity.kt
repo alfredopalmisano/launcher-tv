@@ -300,6 +300,10 @@ class MainActivity : Activity() {
                 // desplaza de tarjeta en tarjeta y nunca queda una cortada en el borde.
                 // 960 dp de pantalla − 2×24 margen − 2×8 relleno − 2×DOCK_PAD = DOCK_VISIBLE × (tarjeta + 24).
                 list.setPadding((DOCK_PAD_DP * d).toInt(), 0, (DOCK_PAD_DP * d).toInt(), 0)
+                // Las vecinas no pueden pintarse fuera del estante (antes asomaban trocitos por los lados).
+                // El foco agranda la tarjeta 9 dp por lado y cabe en sus 12 dp de relleno: no se recorta.
+                list.clipToPadding = true
+                list.clipChildren = true
                 addView(shelf, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                     marginStart = (24 * d).toInt(); marginEnd = (24 * d).toInt()
                 })
