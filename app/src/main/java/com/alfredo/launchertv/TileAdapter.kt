@@ -80,6 +80,11 @@ class TileAdapter(
         val w = (tileWidthDp * d).toInt()
         val card = v.findViewById<FrameLayout>(R.id.card)
         card.layoutParams = card.layoutParams.apply { width = w; height = w * 9 / 16 }
+        // El marco: tamaño explícito (con match_parent un FrameLayout lo deja a 0 y no se ve).
+        val ringPad = (14 * d).toInt()
+        v.findViewById<View>(R.id.ring).layoutParams = FrameLayout.LayoutParams(w + ringPad, w * 9 / 16 + ringPad).apply {
+            val m = -(7 * d).toInt(); setMargins(m, m, m, m)
+        }
         val label = v.findViewById<TextView>(R.id.label)
         label.layoutParams = label.layoutParams.apply { width = w }
         if (!showLabels || posters) label.visibility = View.GONE
@@ -100,6 +105,10 @@ class TileAdapter(
 
     override fun onViewRecycled(holder: Holder) {
         holder.reset()
+    }
+
+    override fun onViewAttachedToWindow(holder: Holder) {
+        holder.syncFocus()
     }
 
     inner class Holder(view: View) : RecyclerView.ViewHolder(view) {
@@ -203,6 +212,21 @@ class TileAdapter(
             if (posters) info.animate().alpha(if (focused) 1f else 0f).translationY(if (focused) 0f else -6f * d)
                 .setStartDelay(if (focused) 120 else 0).setDuration(if (focused) 220 else 150).start()
             paintRing()
+            // Al desplazarse la fila, RecyclerView puede reciclar/volver a enlazar la tarjeta enfocada
+            // a mitad de animación: se comprueba al terminar que el nombre y el marco quedan visibles.
+            if (focused) itemView.postDelayed({ syncFocus() }, 260)
+        }
+
+        /** Deja la tarjeta enfocada con su nombre, marco y tamaño aunque se haya perdido la animación. */
+        fun syncFocus() {
+            if (!itemView.hasFocus()) return
+            if (showLabels && !posters && label.alpha < 1f && !label.hasTransientState()) {
+                label.animate().alpha(1f).translationY(0f).setDuration(150).start()
+            }
+            if (ring.alpha < 1f) ring.animate().alpha(1f).setDuration(120).start()
+            if (gloss.alpha < 0.6f) gloss.alpha = 0.6f
+            val s = focusScale()
+            if (box.scaleX == 1f) box.animate().scaleX(s).scaleY(s).setDuration(150).start()
         }
 
         /** Tras recorrer la fila deprisa: la tarjeta donde paras recibe el efecto completo. */
@@ -227,6 +251,7 @@ class TileAdapter(
 
         private fun setCardWidth(w: Int) {
             card.layoutParams = card.layoutParams.apply { width = w }
+            ring.layoutParams = (ring.layoutParams as FrameLayout.LayoutParams).apply { width = w + (14 * d).toInt() }
             info.layoutParams = info.layoutParams.apply { width = w }
             card.requestLayout()
         }
@@ -257,6 +282,7 @@ class TileAdapter(
             paintRing()
             if (tile.id == movingId) ring.alpha = 1f
             else if (!itemView.hasFocus()) ring.alpha = 0f
+            if (itemView.hasFocus()) itemView.post { syncFocus() }
             when (tile) {
                 is Tile.App -> {
                     if (tile.banner != null) {
