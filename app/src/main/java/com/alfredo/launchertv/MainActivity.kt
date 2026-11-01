@@ -71,7 +71,7 @@ class MainActivity : Activity() {
     // El dock es un carrusel: tras la última tarjeta vuelve la primera (si hay más de las que caben).
     private val dockAdapter = TileAdapter(DOCK_TILE_DP, false, ::open,
         onLongClick = { showAppMenu(it, fromDock = true) }, loopMin = DOCK_VISIBLE)
-    private val recentsAdapter = TileAdapter(PROGRAM_TILE_DP, true, ::open, loopMin = PROGRAM_VISIBLE, posters = true) { false }
+    private val recentsAdapter = TileAdapter(PROGRAM_TILE_DP, true, ::open, loopMin = PROGRAM_VISIBLE, posters = true) { showProgramMenu(it) }
     private val systemAdapter = TileAdapter(ROW_TILE_DP, true, ::open, loopMin = DOCK_VISIBLE) { showSystemMenu(it) }
     private val gridAdapter = TileAdapter(GRID_TILE_DP, true, ::open) { showAppMenu(it, fromDock = false) }
 
@@ -744,7 +744,8 @@ class MainActivity : Activity() {
     }
 
     private fun refreshRows() {
-        val programs = WatchNextRepository.load(this)
+        val hidden = prefs().getStringSet(KEY_HIDDEN_PROGRAMS, emptySet()) ?: emptySet()
+        val programs = WatchNextRepository.load(this).filter { it.id !in hidden }
         submitRow(recentsRow, recentsAdapter, programs)
         (recentsRow.parent as View).visibility = if (programs.isEmpty()) View.GONE else View.VISIBLE
 
@@ -1115,6 +1116,23 @@ class MainActivity : Activity() {
         return true
     }
 
+    /** Menú al mantener OK en "Continuar viendo": quitar ese contenido de la fila. */
+    private fun showProgramMenu(tile: Tile): Boolean {
+        if (tile !is Tile.Program) return false
+        val anchor = currentFocus?.findViewById<View>(R.id.card)
+        popBack()
+        menus.show(if (anchor == null) tile.title else null, listOf(
+            TvMenu.Item(getString(R.string.menu_hide_program)) {
+                val set = HashSet(prefs().getStringSet(KEY_HIDDEN_PROGRAMS, emptySet()) ?: emptySet())
+                set.add(tile.id)
+                prefs().edit().putStringSet(KEY_HIDDEN_PROGRAMS, set).apply()
+                refreshRows()
+                if (recentsAdapter.size > 0) recentsRow.post { focusFirstVisible(recentsRow) } else dock.post { focusFirstVisible(dock) }
+            },
+            TvMenu.Item(getString(R.string.menu_cancel)) { }), anchor)
+        return true
+    }
+
     /** Menú al mantener pulsado OK en Conexiones y sistema: recolocar la tarjeta. */
     private fun showSystemMenu(tile: Tile): Boolean {
         val anchor = currentFocus?.findViewById<View>(R.id.card)
@@ -1155,7 +1173,8 @@ class MainActivity : Activity() {
         private const val NIGHT_SHADE = 0.38f
         /** El dock, en el inicio, queda a esta distancia del borde de abajo (zona segura: 27 dp). */
         private const val DOCK_BOTTOM_DP = 32
-        private const val KEY_SHELF_LIGHT = "shelf_light"   // = las fotos al 62 % de brillo, como antes
+        private const val KEY_SHELF_LIGHT = "shelf_light"
+        private const val KEY_HIDDEN_PROGRAMS = "hidden_programs"   // = las fotos al 62 % de brillo, como antes
         private const val TAG = "LauncherTV"
         private val AIRPLAY_RECEIVERS = listOf(
             "io.github.jqssun.airplay",        // AirPlay Server (código abierto, UxPlay) — paso6_airplay.sh

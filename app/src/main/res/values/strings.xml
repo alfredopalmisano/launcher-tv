@@ -37,6 +37,7 @@
     <string name="remote_message">Abre en el iPhone (misma Wi-Fi):\n\n%1$s\n\nPIN de esta tele: %2$s\n\nEn Safari: Compartir → "Añadir a pantalla de inicio" para tenerlo como una app.</string>
     <string name="shelf_dark">Estante oscuro</string>
     <string name="shelf_light">Estante claro</string>
+    <string name="menu_hide_program">Quitar de Continuar viendo</string>
     <string name="ok_button">Vale</string>
     <string name="input_connected">%1$s conectada</string>
     <string name="input_disconnected">%1$s desconectada</string>

@@ -50,6 +50,8 @@ class Wallpapers(
     var onPhotoChanged: ((Prepared) -> Unit)? = null
     /** Montaña en relieve durante el zoom lento (se puede apagar para medir). */
     var relief = true
+    /** La foto nueva ya terminó de entrar: su montaña puede adelantarse. */
+    private var fgReady = false
     /** Zoom actual de la foto (1…1,07) para que el reloj de cristal siga alineado con ella. */
     var onZoom: ((Float) -> Unit)? = null
     private val layouts = Layouts(context)
@@ -133,12 +135,21 @@ class Wallpapers(
         //    gráfica pinta dos pantallas completas menos en cada fotograma.)
         top.photo.setImageBitmap(bmp)
         top.photo.scaleX = 1f; top.photo.scaleY = 1f; top.photo.alpha = 0f
-        // Relieve: la montaña de la foto anterior desaparece justo cuando coincide con la foto
-        // (su adelanto ya volvió a cero), y la nueva aparece cuando ya no hay fundido.
-        bottom.fg.alpha = 0f; bottom.fg.setImageDrawable(null)
+        // Relieve: la montaña de la foto anterior (más adelantada que su cielo) se va fundiendo
+        // junto con su foto; la nueva aparece al acabar el fundido (aún coincide con su foto).
+        val oldFg = top.fg.drawable
+        if (oldFg != null && top.fg.alpha > 0f) {
+            bottom.fg.setImageDrawable(oldFg)
+            bottom.fg.scaleX = top.fg.scaleX; bottom.fg.scaleY = top.fg.scaleY
+            bottom.fg.alpha = 1f
+            fade(bottom.fg, 0f) { bottom.fg.setImageDrawable(null) }
+        } else {
+            bottom.fg.alpha = 0f; bottom.fg.setImageDrawable(null)
+        }
         top.fg.alpha = 0f; top.fg.scaleX = 1f; top.fg.scaleY = 1f
         top.fg.setImageBitmap(p.fg)
-        fade(top.photo, 1f) { bottom.photo.setImageDrawable(null) }
+        fgReady = false
+        fade(top.photo, 1f) { bottom.photo.setImageDrawable(null); fgReady = true }
         kenBurns(top)
         onPhotoChanged?.invoke(p)
         val author = credits[files[index]]
@@ -209,16 +220,13 @@ class Wallpapers(
             val t = ((android.os.SystemClock.uptimeMillis() - kbStart).toFloat() / (INTERVAL_MS + FADE_MS)).coerceIn(0f, 1f)
             val sc = 1f + KB_ZOOM * t
             l.photo.scaleX = sc; l.photo.scaleY = sc
-            // Montaña en relieve: se acerca un poco más que el cielo (hasta un 3 % a mitad de la
-            // foto) y vuelve a coincidir antes del cambio. Fuera de ese tramo la capa no se pinta.
-            val el = (android.os.SystemClock.uptimeMillis() - kbStart).toFloat()
-            val u = ((el - FADE_MS) / (INTERVAL_MS - 2 * FADE_MS)).coerceIn(0f, 1f)
-            val extra = if (relief && l.fg.drawable != null) RELIEF * kotlin.math.sin(u * Math.PI).toFloat() else 0f
-            if (extra > 0.0004f) {
-                val fs = sc * (1f + extra)
+            // Montaña en relieve: el cielo se acerca un 7 % y la montaña un 10 % en lo que dura la
+            // foto, con el reloj entre las dos capas (la montaña es la foto recortada con su máscara).
+            if (relief && fgReady && l.fg.drawable != null) {
+                val fs = 1f + FG_ZOOM * t
                 l.fg.scaleX = fs; l.fg.scaleY = fs
                 if (l.fg.alpha != 1f) l.fg.alpha = 1f
-            } else if (l.fg.alpha != 0f) {
+            } else if ((!fgReady || !relief) && l.fg.alpha != 0f) {
                 l.fg.alpha = 0f
             }
             onZoom?.invoke(sc)
@@ -250,6 +258,6 @@ class Wallpapers(
         private const val FADE_MS = 1_600L
         private const val KB_ZOOM = 0.07f
         private const val KB_STEP_MS = 200L
-        private const val RELIEF = 0.03f
+        private const val FG_ZOOM = 0.10f   // la montaña (el cielo: KB_ZOOM = 7 %)
     }
 }
