@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Material Symbols Rounded (relleno), Apache 2.0. Un solo juego de iconos para todo el launcher. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="48dp" android:height="48dp"
-    android:viewportWidth="48" android:viewportHeight="48" android:tint="#FFFFFFFF">
-    <path android:fillColor="#FFFFFFFF"
-        android:pathData="M14,12 L34,12 C40,12 44,17 44,24 L44,30 C44,34 41,37 37,37 C34,37 32,35 30,32 L18,32 C16,35 14,37 11,37 C7,37 4,34 4,30 L4,24 C4,17 8,12 14,12 Z M13,19 L13,23 L9,23 L9,26 L13,26 L13,30 L16,30 L16,26 L20,26 L20,23 L16,23 L16,19 Z M33,19 A2,2 0 1 0 33,23 A2,2 0 1 0 33,19 Z M37,23 A2,2 0 1 0 37,27 A2,2 0 1 0 37,23 Z M29,23 A2,2 0 1 0 29,27 A2,2 0 1 0 29,23 Z M33,27 A2,2 0 1 0 33,31 A2,2 0 1 0 33,27 Z" />
+    android:width="40dp" android:height="40dp"
+    android:viewportWidth="960" android:viewportHeight="960" android:tint="#FFFFFFFF">
+    <group android:translateY="960">
+        <path android:fillColor="#FFFFFFFF" android:pathData="M147-200q-38 0-59.5-25.5T72-296l48-335q8-53 49.5-91t94.5-38h433q53 0 94.5 38t49.5 91l47 335q6 45-15.5 70.5T813-200q-23 0-39-7.5T747-226L643-330H317L213-226q-11 11-27 18.5t-39 7.5Zm553-240q16 0 28-12t12-28q0-16-12-28t-28-12q-16 0-28 12t-12 28q0 16 12 28t28 12Zm-85-130q16 0 28-12t12-28q0-16-12-28t-28-12q-16 0-28 12t-12 28q0 16 12 28t28 12Zm-315 50v50q0 11 7 18t18 7q11 0 18-7t7-18v-50h50q11 0 18-7t7-18q0-11-7-18t-18-7h-50v-50q0-11-7-18t-18-7q-11 0-18 7t-7 18v50h-50q-11 0-18 7t-7 18q0 11 7 18t18 7h50Z" />
+    </group>
 </vector>

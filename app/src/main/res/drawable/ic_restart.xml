@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Material Symbols Rounded (relleno), Apache 2.0. Un solo juego de iconos para todo el launcher. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="48dp" android:height="48dp"
-    android:viewportWidth="48" android:viewportHeight="48" android:tint="#FFFFFFFF">
-    <path android:fillColor="#FFFFFFFF"
-        android:pathData="M24,8 C32.8,8 40,15.2 40,24 C40,32.8 32.8,40 24,40 C15.2,40 8,32.8 8,24 L12,24 C12,30.6 17.4,36 24,36 C30.6,36 36,30.6 36,24 C36,17.4 30.6,12 24,12 C20.7,12 17.7,13.3 15.5,15.5 L20,20 L8,20 L8,8 L12.7,12.7 C15.6,9.8 19.6,8 24,8 Z" />
+    android:width="40dp" android:height="40dp"
+    android:viewportWidth="960" android:viewportHeight="960" android:tint="#FFFFFFFF">
+    <group android:translateY="960">
+        <path android:fillColor="#FFFFFFFF" android:pathData="M418-126q-111-21-184.5-109T160-439q0-71 30-134t85-107q8-6 19-5.5t19 8.5q10 10 9 23t-13 23q-42 35-65.5 85.5T220-439q0 94 58 163.5T425-186q11 2 18.5 11t7.5 20q0 14-10 22.5t-23 6.5Zm126 0q-13 2-23-6.5T511-155q0-11 7.5-20t18.5-11q90-20 147-89.5T741-439q0-109-75.5-184.5T481-699h-20l39 39q8 8 8 21t-8 21q-9 9-22 9t-21-9l-91-90q-5-5-7-10t-2-11q0-6 2-11t7-10l91-91q8-8 21-8t22 8q8 9 8 22t-8 21l-39 39h20q134 0 227 93.5T801-439q0 116-73 204T544-126Z" />
+    </group>
 </vector>

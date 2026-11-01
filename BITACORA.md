@@ -141,10 +141,12 @@ Repositorio `launcher-tv`, Kotlin, `minSdk 28`, `targetSdk 28`. Paquete `com.alf
 | 0.46 | La capa negra de la apertura ya no puede quedarse encima al volver |
 | 0.47 | La tarjeta Apps va la primera del dock |
 | 0.48 | **La tele se apagaba a los 5 min dentro del menú de una app** (SkyShowtime): sin salvapantallas, Android apaga la pantalla al llegar a `screen_off_timeout` (~5 min). El launcher (`Power.kt`, al arrancar el servicio) lo sube a 60 min con el ADB interno si está por debajo. `paso5_dormir.sh` también lo pone (copia nueva pendiente de pasar al Mac) |
+| 0.49 | **Rediseño (método unslop adaptado a TV) y animaciones nuevas**, aprobado en la simulación «Propuestas LauncherTV» (ver `LauncherTV/DISENO.md` del proyecto). Diseño: estante **humo**, radios 32/16, tarjetas planas, brillo solo en la enfocada, **marco del foco por fuera** (se ve en tarjetas blancas), iconos Material Symbols a 40 dp, textos a 20 sp, menús y avisos propios (`TvMenu`, aviso arriba a la derecha). Filas: dock → Conexiones y sistema → Continuar viendo; al bajar, la página sube lo justo para quedar en la zona segura (`RowsScrollView`). Animaciones: foco 300 ms, recorrido rápido al mantener la flecha, abrir app con curva enfatizada y **volver encogiéndose hasta la tarjeta**, salida del modo ambiente en cascada, Mover deslizante, noche gradual (velo 2 s), **montaña en relieve** (capa de primer plano +3 % a mitad de foto), Continuar viendo que se ensancha con título y progreso, profundidad al bajar, encendido en tres tiempos, cifra del reloj que se funde, consola HDMI con aviso, sonidos distintos. Pendiente medir fps en la tele |
 
 ---
 
 ## 4. Pendiente / ideas acordadas
+- **1-nov (0.49)**: instalar y revisar en la tele el rediseño y las animaciones; medir fluidez (`medir_fluidez.sh`) sobre todo el relieve de la montaña y el ensanchado de «Continuar viendo». Si algo va a tirones, se puede apagar por partes.
 - **1-nov**: instalar la 0.48 (paso3) y comprobar `settings get system screen_off_timeout` = 3600000. Copiar el `paso5_dormir.sh` actualizado a la carpeta del Mac cuando la tele/Mac vuelvan a estar enlazados.
 - **31-oct mañana**: Alfredo nota "todo en la tele mucho más rápido" tras quitar los redibujos continuos. Antes de tocar algo que no ha pedido, **preguntarle**.
 - **Carabobo FC**: falta el vídeo del reel (grabación de pantalla del iPhone) y saber qué envía el botón Mi (`boton_mi.sh` salió vacío). Fotos en `~/Desktop/LauncherTV/carabobo/fotos` (no van al repo: es público).

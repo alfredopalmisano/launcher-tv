@@ -16,6 +16,7 @@ object Fonts {
         ?: variable(context, NUNITO, 230)
         ?: Typeface.create("sans-serif-condensed-light", Typeface.NORMAL)
     fun light(context: Context): Typeface = variable(context, NUNITO, 320) ?: Typeface.create("sans-serif-light", Typeface.NORMAL)
+    fun regular(context: Context): Typeface = variable(context, NUNITO, 400) ?: Typeface.create("sans-serif", Typeface.NORMAL)
     fun medium(context: Context): Typeface = variable(context, NUNITO, 560) ?: Typeface.create("sans-serif-medium", Typeface.NORMAL)
 
     private fun variable(context: Context, path: String, wght: Int): Typeface? {

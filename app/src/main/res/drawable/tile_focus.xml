@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Marco del foco, POR FUERA de la tarjeta (4 dp de hueco): se ve también sobre tarjetas blancas.
+     La vista del marco sobresale 7 dp por cada lado: 4 de hueco + 3 de trazo. Radio 16 + 7. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <corners android:radius="22dp" />
-    <stroke android:width="3dp" android:color="#F2FFFFFF" />
+    <corners android:radius="23dp" />
+    <stroke android:width="3dp" android:color="#FFFFFFFF" />
 </shape>

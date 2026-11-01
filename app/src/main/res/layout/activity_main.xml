@@ -50,6 +50,14 @@
         android:alpha="0"
         android:contentDescription="@null" />
 
+    <!-- Modo noche (temporizador de Dormir): la foto, la montaña y el reloj se oscurecen poco a poco. -->
+    <View
+        android:id="@+id/nightShade"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#FF140C04"
+        android:alpha="0" />
+
     <View
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -63,7 +71,16 @@
         android:background="#000000"
         android:alpha="0" />
 
-    <ScrollView
+    <!-- Encendido: negro sobre la foto; el reloj aparece primero (por encima, con translationZ). -->
+    <View
+        android:id="@+id/bootShade"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#FF000000"
+        android:alpha="0"
+        android:visibility="gone" />
+
+    <com.alfredo.launchertv.RowsScrollView
         android:id="@+id/rowsScroll"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -85,9 +102,9 @@
             <Space
                 android:id="@+id/topSpace"
                 android:layout_width="match_parent"
-                android:layout_height="400dp" />
+                android:layout_height="248dp" />
         </LinearLayout>
-    </ScrollView>
+    </com.alfredo.launchertv.RowsScrollView>
 
     <FrameLayout
         android:id="@+id/overlay"
@@ -130,8 +147,8 @@
             android:layout_marginStart="64dp"
             android:layout_marginTop="92dp"
             android:text="@string/all_apps_hint"
-            android:textColor="#99FFFFFF"
-            android:textSize="14sp" />
+            android:textColor="#B3FFFFFF"
+            android:textSize="18sp" />
 
         <TextView
             android:id="@+id/credit"
@@ -140,14 +157,14 @@
             android:layout_gravity="bottom|end"
             android:layout_marginEnd="64dp"
             android:layout_marginBottom="28dp"
-            android:textColor="#80FFFFFF"
-            android:textSize="13sp" />
+            android:textColor="#B3FFFFFF"
+            android:textSize="16sp" />
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/grid"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_marginTop="124dp"
+            android:layout_marginTop="132dp"
             android:paddingStart="52dp"
             android:paddingEnd="52dp"
             android:paddingBottom="40dp"
@@ -171,4 +188,24 @@
         android:scaleType="fitXY"
         android:visibility="gone"
         android:contentDescription="@null" />
+
+    <!-- Avisos propios: arriba a la derecha, dentro de la zona segura (como en Apple TV). -->
+    <TextView
+        android:id="@+id/toast"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="36dp"
+        android:layout_marginEnd="52dp"
+        android:maxWidth="560dp"
+        android:background="@drawable/toast_bg"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp"
+        android:textColor="#FFFFFFFF"
+        android:textSize="18sp"
+        android:alpha="0"
+        android:elevation="16dp"
+        android:visibility="gone" />
 </FrameLayout>

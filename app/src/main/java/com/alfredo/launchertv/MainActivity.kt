@@ -1,7 +1,6 @@
 package com.alfredo.launchertv
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.pm.ApplicationInfo
 import android.net.Uri
 import android.provider.Settings
@@ -18,7 +17,6 @@ import android.view.KeyEvent
 import android.graphics.Bitmap
 import android.widget.ImageView
 import android.widget.TextView
-import android.widget.Toast
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -41,6 +39,23 @@ class MainActivity : Activity() {
     private lateinit var topSpace: Space
     private lateinit var dim: View
     private lateinit var clockBox: View
+    private lateinit var nightShade: View
+    private lateinit var bootShade: View
+    private lateinit var toastView: TextView
+    private val menus by lazy { TvMenu(this) }
+    /** Curva de la propuesta para entradas y desplazamientos (rápida al principio, llegada suave). */
+    private val ease = android.view.animation.PathInterpolator(0.22f, 1f, 0.36f, 1f)
+    private var scrollAnim: android.animation.ObjectAnimator? = null
+    private var deep = false
+    private var isUp = false
+    private var screenOnAt = 0L
+    /** Foto de la tarjeta desde la que se abrió la última app, para volver encogiéndose hasta ella. */
+    private var returnShot: Bitmap? = null
+    private val returnLoc = IntArray(2)
+    private var returnSize = Pair(0f, 0f)
+    private var launchedAt = 0L
+    private var returningHome = false
+    private var knownInputs: Map<String, String>? = null
     private var dockTopPx = 0f
     private var ambient = false
     private var dockFocusPos = 0
@@ -56,7 +71,7 @@ class MainActivity : Activity() {
     // El dock es un carrusel: tras la última tarjeta vuelve la primera (si hay más de las que caben).
     private val dockAdapter = TileAdapter(DOCK_TILE_DP, false, ::open,
         onLongClick = { showAppMenu(it, fromDock = true) }, loopMin = DOCK_VISIBLE)
-    private val recentsAdapter = TileAdapter(PROGRAM_TILE_DP, true, ::open, loopMin = PROGRAM_VISIBLE) { false }
+    private val recentsAdapter = TileAdapter(PROGRAM_TILE_DP, true, ::open, loopMin = PROGRAM_VISIBLE, posters = true) { false }
     private val systemAdapter = TileAdapter(ROW_TILE_DP, true, ::open, loopMin = DOCK_VISIBLE) { showSystemMenu(it) }
     private val gridAdapter = TileAdapter(GRID_TILE_DP, true, ::open) { showAppMenu(it, fromDock = false) }
 
@@ -137,6 +152,10 @@ class MainActivity : Activity() {
         topSpace = findViewById(R.id.topSpace)
         dim = findViewById(R.id.dim)
         clockBox = findViewById(R.id.clockBox)
+        nightShade = findViewById(R.id.nightShade)
+        bootShade = findViewById(R.id.bootShade)
+        toastView = findViewById(R.id.toast)
+        toastView.typeface = Fonts.medium(this)
         RemoteService.start(this)
         dock = addRow(R.string.row_favorites, dockAdapter)
         systemRow = addRow(R.string.row_system, systemAdapter)
@@ -149,8 +168,8 @@ class MainActivity : Activity() {
         clock.typeface = Fonts.clock(this)
         clock.textSizePx = 180f * dm.scaledDensity
         clock.glassAmount = 0.92f
-        findViewById<TextView>(R.id.credit).typeface = Fonts.light(this)
-        findViewById<TextView>(R.id.overlayTitle).typeface = Fonts.light(this)
+        findViewById<TextView>(R.id.credit).typeface = Fonts.regular(this)
+        findViewById<TextView>(R.id.overlayTitle).typeface = Fonts.regular(this)
 
         wallpapers = Wallpapers(this,
             findViewById(R.id.wallA), findViewById(R.id.fgA),
@@ -166,24 +185,10 @@ class MainActivity : Activity() {
             overlayBg.setImageBitmap(p.blurred)
         }
 
-        // La primera fila queda abajo; las demás, fuera de pantalla hasta que bajes.
-        rowsScroll.viewTreeObserver.addOnGlobalLayoutListener {
-            val firstRow = rowsBox.getChildAt(1) ?: return@addOnGlobalLayoutListener
-            val wanted = rowsScroll.height - firstRow.height - (16 * dm.density).toInt()
-            if (wanted > 0 && topSpace.layoutParams.height != wanted) {
-                topSpace.layoutParams = topSpace.layoutParams.apply { height = wanted }
-                topSpace.requestLayout()
-            }
-            dockTopPx = (wanted + (36 * dm.density)).toFloat()
-        }
-        rowsScroll.viewTreeObserver.addOnScrollChangedListener {
-            // Al bajar a las otras filas se oscurece el fondo y se atenúa el reloj.
-            val p = (rowsScroll.scrollY / (260 * dm.density)).coerceIn(0f, 1f)
-            dim.alpha = 0.65f * p
-            clockBox.alpha = 1f - p
-            // Las filas de abajo no se ven hasta que bajas.
-            for (i in 2 until rowsBox.childCount) rowsBox.getChildAt(i).alpha = (p * 2f).coerceIn(0f, 1f)
-        }
+        // El estante del dock empieza a 248 dp; debajo asoma Conexiones y sistema. Al bajar, la
+        // página sube lo justo para que la fila enfocada (con su nombre) quede en la zona segura.
+        dockTopPx = 248 * dm.density
+        rowsScroll.viewTreeObserver.addOnGlobalFocusChangeListener { _, now -> scrollForFocus(now) }
 
         val gridWidthDp = dm.widthPixels / dm.density - 2 * 52
         grid.layoutManager = GridLayoutManager(this, (gridWidthDp / (GRID_TILE_DP + 24)).toInt().coerceAtLeast(3))
@@ -192,7 +197,8 @@ class MainActivity : Activity() {
 
         hideSystemUi()
         setupSounds()
-        Night.onChange = { applyNight(it) }
+        Night.onChange = { applyNight(it, animate = true) }
+        registerReceiver(screenReceiver, IntentFilter(Intent.ACTION_SCREEN_ON))
         reload()
     }
 
@@ -209,10 +215,11 @@ class MainActivity : Activity() {
             addDataScheme("package")
         })
         InputsRepository.manager(this)?.registerCallback(inputCallback, handler)
-        hideLaunchZoom(animate = true)   // al volver de una app
+        returnHome()   // al volver de una app: la pantalla se encoge hasta la tarjeta
         applyDebug(emptySet())   // nunca arrancar con piezas apagadas
         Night.restoreIfExpired(this)
-        applyNight(Night.isOn(this))
+        applyNight(Night.isOn(this), animate = false)
+        if (android.os.SystemClock.uptimeMillis() - screenOnAt < 4000) { screenOnAt = 0L; powerOn() }
         registerReceiver(debugReceiver, IntentFilter("com.alfredo.launchertv.DEBUG"), android.Manifest.permission.DUMP, null)
         refreshDock()
     }
@@ -231,14 +238,50 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        isUp = true
         // Seguro: al volver (aunque Android no pase por onStart, p. ej. tras apps que no tapan
         // del todo al launcher) nunca puede quedarse la capa negra de la animación encima.
-        hideLaunchZoom(animate = true)
+        if (!returningHome) hideLaunchZoom(animate = true)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        isUp = false
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try { unregisterReceiver(screenReceiver) } catch (e: Exception) { }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) { hideSystemUi(); hideLaunchZoom(animate = true) }
+        if (hasFocus) { hideSystemUi(); if (!returningHome) hideLaunchZoom(animate = true) }
+    }
+
+    /** Al encender la tele: primero la hora, luego la foto sale de negro y por último las apps. */
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (isUp) powerOn() else screenOnAt = android.os.SystemClock.uptimeMillis()
+        }
+    }
+
+    private fun powerOn() {
+        val d = resources.displayMetrics.density
+        hideLaunchZoom(animate = false)
+        bootShade.animate().cancel(); clockBox.animate().cancel(); rowsScroll.animate().cancel()
+        bootShade.visibility = View.VISIBLE; bootShade.alpha = 1f
+        clockBox.translationZ = 40 * d
+        clockBox.alpha = 0f
+        rowsScroll.alpha = 0f
+        clockBox.animate().alpha(if (deep) 0.5f else 1f).setStartDelay(150).setDuration(500).start()
+        bootShade.animate().alpha(0f).setStartDelay(530).setDuration(700).withEndAction {
+            bootShade.visibility = View.GONE
+            clockBox.translationZ = 0f
+        }.start()
+        handler.postDelayed({
+            if (!ambient) { rowsScroll.alpha = 1f; rowsScroll.translationY = 0f; cascadeIn() }
+        }, 1050)
     }
 
     override fun onNewIntent(intent: Intent?) {
@@ -268,6 +311,16 @@ class MainActivity : Activity() {
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         resetIdle()
+        if (event.action == KeyEvent.ACTION_UP) {
+            when (event.keyCode) {
+                // Al soltar la flecha tras recorrer la fila deprisa: efecto completo donde paras.
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> if (TileAdapter.fast) {
+                    TileAdapter.fast = false
+                    settleFocused()
+                }
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> cancelSink()
+            }
+        }
         if (event.action != KeyEvent.ACTION_DOWN) return super.dispatchKeyEvent(event)
         val code = event.keyCode
         if (code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT ||
@@ -290,6 +343,12 @@ class MainActivity : Activity() {
                 KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> return true
             }
         }
+
+        // Mantener OK sobre una tarjeta: se hunde poco a poco hasta que sale su menú.
+        if ((code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER) && event.repeatCount == 0) startSink()
+
+        // Flecha mantenida (← →): recorrido rápido, sin inclinación ni brillo en cada tarjeta.
+        if (code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT) TileAdapter.fast = event.repeatCount > 0
 
         // El brillo de la tarjeta barre en la dirección del movimiento.
         when (code) {
@@ -327,25 +386,138 @@ class MainActivity : Activity() {
     private fun setAmbient(on: Boolean) {
         ambient = on
         val d = resources.displayMetrics.density
+        rowsScroll.animate().cancel()
         if (on) {
             // Recordar en qué app estaba el cursor para volver exactamente ahí.
             val focused = dock.focusedChild
             if (focused != null) dockFocusPos = dock.getChildAdapterPosition(focused)
-            rowsScroll.scrollTo(0, 0)
-        }
-        rowsScroll.animate().alpha(if (on) 0f else 1f).translationY(if (on) 40 * d else 0f).setDuration(350).withEndAction {
-            if (!on) dock.post {
+            setDeep(false)
+            // Se recogen: bajan 12 dp y se desvanecen.
+            rowsScroll.animate().alpha(0f).translationY(12 * d).setDuration(300).setInterpolator(ease).withEndAction {
+                scrollAnim?.cancel(); rowsScroll.scrollTo(0, 0)
+            }.start()
+        } else {
+            scrollAnim?.cancel(); rowsScroll.scrollTo(0, 0)
+            rowsScroll.alpha = 1f; rowsScroll.translationY = 0f
+            dock.post {
                 val v = if (dockFocusPos >= 0) dock.layoutManager?.findViewByPosition(dockFocusPos) else null
                 if (v != null) v.requestFocus() else focusFirstVisible(dock)
+                cascadeIn()
             }
-        }.start()
+        }
+    }
+
+    /**
+     * Las tarjetas aparecen en cascada desde la que tiene el foco hacia los lados (40 ms entre
+     * cada una), subiendo 12 dp: primero el estante y el dock, luego Conexiones y sistema.
+     */
+    private fun cascadeIn() {
+        val d = resources.displayMetrics.density
+        fun visible(rv: RecyclerView): List<View> = (0 until rv.childCount).map { rv.getChildAt(it) }
+            .filter { it.right > rv.paddingLeft && it.left < rv.width - rv.paddingRight }.sortedBy { it.left }
+        val dockItems = visible(dock)
+        val fc = dockItems.indexOfFirst { it.hasFocus() }.coerceAtLeast(0)
+        fun appear(v: View, delay: Long) {
+            v.animate().cancel()
+            v.alpha = 0f; v.translationY = 12 * d
+            v.animate().alpha(1f).translationY(0f).setStartDelay(delay).setDuration(450).setInterpolator(ease).start()
+        }
+        (dock.parent as? View)?.let { appear(it, 0) }   // el estante
+        dockItems.forEachIndexed { i, v -> appear(v, kotlin.math.abs(i - fc) * 40L) }
+        val sysRowBox = systemRow.parent as? LinearLayout
+        sysRowBox?.getChildAt(0)?.takeIf { it is TextView }?.let { appear(it, 80) }
+        visible(systemRow).forEachIndexed { i, v -> appear(v, 80 + kotlin.math.abs(i - fc) * 40L) }
+    }
+
+    /** Fila enfocada: el estante (dock) arriba del todo; las demás, subiendo lo justo. */
+    private fun scrollForFocus(now: View?) {
+        if (now == null || ambient || overlay.visibility == View.VISIBLE) return
+        if (!isInside(now, rowsBox)) return
+        val d = resources.displayMetrics.density
+        val inDock = isInside(now, dock)
+        var target = 0
+        if (!inDock) {
+            // La tarjeta (hija directa de su fila) y lo de debajo: nombre o información.
+            var item: View = now
+            while (item.parent !is RecyclerView) item = item.parent as? View ?: return
+            val r = android.graphics.Rect(0, 0, item.width, item.height)
+            rowsBox.offsetDescendantRectToMyCoords(item, r)
+            val contentBottom = r.bottom - (12 * d).toInt()           // sin el relleno de la tarjeta
+            val limit = rowsScroll.height - ((27 + 4) * d).toInt()     // zona segura: 27 dp abajo
+            target = (contentBottom - limit).coerceAtLeast(0)
+        }
+        setDeep(!inDock)
+        if (rowsScroll.scrollY == target) return
+        scrollAnim?.cancel()
+        scrollAnim = android.animation.ObjectAnimator.ofInt(rowsScroll, "scrollY", rowsScroll.scrollY, target).apply {
+            duration = 450; interpolator = ease; start()
+        }
+    }
+
+    private fun isInside(v: View, parent: View): Boolean {
+        var p: View? = v
+        while (p != null) { if (p === parent) return true; p = p.parent as? View }
+        return false
+    }
+
+    /** Profundidad al bajar de fila: la foto se oscurece un poco y el reloj se atenúa. */
+    private fun setDeep(on: Boolean) {
+        if (deep == on) return
+        deep = on
+        dim.animate().alpha(if (on) 0.3f else 0f).setDuration(450).setInterpolator(ease).start()
+        clockBox.animate().alpha(if (on) 0.5f else 1f).setDuration(450).setInterpolator(ease).start()
+    }
+
+    // ---- Mantener OK: la tarjeta se hunde poco a poco hasta que sale su menú ----
+    private var sinking: View? = null
+
+    private fun focusedBox(): View? {
+        val f = currentFocus ?: return null
+        if (f.parent !is RecyclerView) return null
+        return f.findViewById(R.id.box)
+    }
+
+    private fun focusScaleOf(box: View): Float {
+        val card = box.findViewById<View>(R.id.card) ?: return 1.12f
+        return 1f + TileAdapter.GROW_DP * resources.displayMetrics.density * 2f / card.width.coerceAtLeast(1)
+    }
+
+    private fun startSink() {
+        if (ambient || movingId != null) return
+        val box = focusedBox() ?: return
+        sinking = box
+        box.animate().scaleX(1f).scaleY(1f).setStartDelay(0)
+            .setDuration(android.view.ViewConfiguration.getLongPressTimeout().toLong())
+            .setInterpolator(android.view.animation.PathInterpolator(0.3f, 0f, 0.2f, 1f)).start()
+    }
+
+    private fun cancelSink() {
+        val box = sinking ?: return
+        sinking = null
+        val s = focusScaleOf(box)
+        box.animate().scaleX(s).scaleY(s).setDuration(160).setInterpolator(ease).start()
+    }
+
+    /** Tras el menú (pulsación larga): la tarjeta vuelve a su tamaño con un pequeño rebote. */
+    private fun popBack() {
+        val box = sinking ?: focusedBox() ?: return
+        sinking = null
+        val s = focusScaleOf(box)
+        box.animate().scaleX(s).scaleY(s).setDuration(260).setInterpolator(android.view.animation.OvershootInterpolator(1.3f)).start()
+    }
+
+    /** Efecto completo en la tarjeta donde se paró el recorrido rápido. */
+    private fun settleFocused() {
+        val f = currentFocus ?: return
+        val rv = f.parent as? RecyclerView ?: return
+        (rv.findContainingViewHolder(f) as? TileAdapter.Holder)?.settle()
     }
 
     private fun startMoving(tile: Tile, inSystem: Boolean) {
         movingId = tile.id
         movingInSystem = inSystem
         (if (inSystem) systemAdapter else dockAdapter).movingId = tile.id
-        toast(getString(R.string.move_hint))
+        toast(getString(R.string.move_hint), long = true)
         if (inSystem) focusTile(systemRow, systemAdapter, tile.id) else refreshDock(focus = tile.id)
     }
 
@@ -361,12 +533,56 @@ class MainActivity : Activity() {
     /** Recoloca la tarjeta que se está moviendo una posición a la izquierda (−1) o derecha (+1). */
     private fun moveBy(id: String, delta: Int) {
         if (movingInSystem) {
+            val before = positionsOf(systemRow, systemAdapter)
             if (systemOrder.move(systemAdapter.ids(), id, delta)) {
                 refreshSystem()
                 focusTile(systemRow, systemAdapter, id)
+                slideFrom(systemRow, systemAdapter, before)
             }
         } else {
-            if (favorites.move(id.removePrefix("app:"), delta)) refreshDock(focus = id)
+            val before = positionsOf(dock, dockAdapter)
+            if (favorites.move(id.removePrefix("app:"), delta)) {
+                refreshDock(focus = id)
+                slideFrom(dock, dockAdapter, before)
+            }
+        }
+    }
+
+    /** Posición en pantalla de cada tarjeta visible de la fila (por su id). */
+    private fun positionsOf(row: RecyclerView, adapter: TileAdapter): Map<String, Float> {
+        val out = HashMap<String, Float>()
+        for (i in 0 until row.childCount) {
+            val v = row.getChildAt(i)
+            val id = adapter.itemAt(row.getChildAdapterPosition(v))?.id ?: continue
+            if (id !in out) out[id] = v.left.toFloat()
+        }
+        return out
+    }
+
+    /**
+     * Tras recolocar una fila, cada tarjeta se desliza desde donde estaba (en vez de saltar).
+     * Las que no estaban (una consola recién conectada) aparecen subiendo y fundiéndose.
+     */
+    private fun slideFrom(row: RecyclerView, adapter: TileAdapter, before: Map<String, Float>, fadeNew: Boolean = false) {
+        val d = resources.displayMetrics.density
+        row.post {
+            row.post {
+                for (i in 0 until row.childCount) {
+                    val v = row.getChildAt(i)
+                    val id = adapter.itemAt(row.getChildAdapterPosition(v))?.id ?: continue
+                    val old = before[id]
+                    if (old != null) {
+                        val dx = old - v.left
+                        if (kotlin.math.abs(dx) > 1f && kotlin.math.abs(dx) < row.width) {
+                            v.translationX = dx
+                            v.animate().translationX(0f).setDuration(280).setInterpolator(ease).start()
+                        }
+                    } else if (fadeNew) {
+                        v.alpha = 0f; v.translationY = 12 * d
+                        v.animate().alpha(1f).translationY(0f).setStartDelay(120).setDuration(450).setInterpolator(ease).start()
+                    }
+                }
+            }
         }
     }
 
@@ -436,13 +652,14 @@ class MainActivity : Activity() {
     private fun addRow(titleRes: Int, adapter: TileAdapter): RecyclerView {
         val d = resources.displayMetrics.density
         val first = rowsBox.childCount < 2
+        // Títulos de fila a 20 sp (se leen a 3 m): 24 dp por encima, pegados a su fila.
         val title = TextView(this).apply {
             text = getString(titleRes)
             setTextColor(0xCCFFFFFF.toInt())
-            textSize = 15f
+            textSize = 20f
             typeface = Fonts.medium(this@MainActivity)
             setShadowLayer(8f, 0f, 2f, 0x80000000.toInt())
-            setPadding(((ROW_EDGE_DP + 12) * d).toInt(), (10 * d).toInt(), 0, 0)
+            setPadding(((ROW_EDGE_DP + 12) * d).toInt(), ((if (rowsBox.childCount == 2) 20 else 28) * d).toInt(), 0, 0)
         }
         val list = RecyclerView(this).apply {
             layoutManager = object : LinearLayoutManager(this@MainActivity, RecyclerView.HORIZONTAL, false) {
@@ -473,14 +690,16 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             clipChildren = false
             clipToPadding = false
-            if (!first) addView(title, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            if (!first) addView(title, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                bottomMargin = (-4 * d).toInt()
+            })
             if (first) {
                 // Estante de cristal detrás del dock (estilo Apple TV).
                 val shelf = android.widget.FrameLayout(this@MainActivity).apply {
                     background = getDrawable(R.drawable.dock_shelf)
                     clipChildren = false
                     clipToPadding = false
-                    setPadding((8 * d).toInt(), (6 * d).toInt(), (8 * d).toInt(), (6 * d).toInt())
+                    setPadding((8 * d).toInt(), (4 * d).toInt(), (8 * d).toInt(), (4 * d).toInt())
                     addView(list, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
                 }
                 // Caben exactamente DOCK_VISIBLE tarjetas en el estante: al mover el foco, la fila se
@@ -496,7 +715,6 @@ class MainActivity : Activity() {
                 addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             }
         }
-        if (rowsBox.childCount >= 2) row.alpha = 0f   // filas de abajo: ocultas hasta bajar
         rowsBox.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         return list
     }
@@ -524,7 +742,18 @@ class MainActivity : Activity() {
 
     private fun refreshSystem() {
         val sys = ArrayList<Tile>()
-        sys.addAll(InputsRepository.loadConnected(this))
+        val inputs = InputsRepository.loadConnected(this)
+        sys.addAll(inputs)
+        // Consola o Chromecast recién conectado (o desconectado): aviso, y su tarjeta entra deslizándose.
+        val now = inputs.associate { it.id to it.label }
+        val known = knownInputs
+        knownInputs = now
+        val changed = known != null && known.keys != now.keys
+        if (known != null) {
+            now.filterKeys { it !in known }.values.forEach { toast(getString(R.string.input_connected, it)) }
+            known.filterKeys { it !in now }.values.forEach { toast(getString(R.string.input_disconnected, it)) }
+        }
+        val before = if (changed) positionsOf(systemRow, systemAdapter) else null
         sys.add(Tile.AirPlay)
         sys.add(Tile.Action("wifi", getString(R.string.wifi), R.drawable.ic_wifi))
         sys.add(Tile.Action("bt", getString(R.string.bluetooth), R.drawable.ic_bluetooth))
@@ -534,6 +763,7 @@ class MainActivity : Activity() {
         sys.add(Tile.Store)
         sys.add(Tile.SettingsTile)
         submitRow(systemRow, systemAdapter, systemOrder.apply(sys))
+        if (before != null) slideFrom(systemRow, systemAdapter, before, fadeNew = true)
     }
 
     private fun refreshDock(focus: String? = null) {
@@ -580,11 +810,11 @@ class MainActivity : Activity() {
                 "wifi" -> if (!tryStart(Intent(Settings.ACTION_WIFI_SETTINGS))) tryStart(Intent(Settings.ACTION_SETTINGS))
                 "bt" -> if (!tryStart(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))) tryStart(Intent(Settings.ACTION_SETTINGS))
                 "remote" -> showRemoteInfo()
-                "reboot" -> AlertDialog.Builder(this, R.style.Theme_Launcher_Dialog)
-                    .setTitle(R.string.reboot_title)
-                    .setItems(arrayOf(getString(R.string.reboot), getString(R.string.menu_cancel))) { _, which ->
-                        if (which == 0) Thread { if (TvAdb.reboot(this) == null) runOnUiThread { toast(getString(R.string.sleep_no_admin)) } }.start()
-                    }.show()
+                "reboot" -> menus.show(getString(R.string.reboot_title), listOf(
+                    TvMenu.Item(getString(R.string.reboot)) {
+                        Thread { if (TvAdb.reboot(this) == null) runOnUiThread { toast(getString(R.string.sleep_no_admin)) } }.start()
+                    },
+                    TvMenu.Item(getString(R.string.menu_cancel)) { }))
             }
             Tile.Store -> {
                 val store = packageManager.getLeanbackLaunchIntentForPackage("com.android.vending")
@@ -604,11 +834,14 @@ class MainActivity : Activity() {
         // Animación al abrir: el icono crece hasta llenar la pantalla y se funde a negro; entonces
         // la app aparece con un fundido. (Grabado en la tele: la animación del sistema hacía crecer
         // un rectángulo NEGRO, la ventana vacía de la app, seguido de más de 1 s en negro.)
+        Sounds.play(Sounds.OPEN)
         zoomFrom(from) {
             try {
                 startActivity(intent, android.app.ActivityOptions.makeCustomAnimation(this, R.anim.app_enter, R.anim.launcher_hold).toBundle())
-                handler.postDelayed({ hideLaunchZoom(animate = false) }, 1500)
+                launchedAt = android.os.SystemClock.uptimeMillis()
+                handler.postDelayed({ if (!returningHome) hideLaunchZoom(animate = false) }, 1500)
             } catch (e: Exception) {
+                returnShot = null
                 hideLaunchZoom(animate = true)
             }
         }
@@ -621,40 +854,83 @@ class MainActivity : Activity() {
         val root = zoom.parent as View
         val w = card.width; val h = card.height
         val d = resources.displayMetrics.density
-        // Foto de la tarjeta (sin el marco de foco), con las esquinas redondeadas.
+        // Foto de la tarjeta (sin el marco de foco ni el brillo), con las esquinas redondeadas.
         val raw = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        val fg = card.foreground
-        card.foreground = null
+        val gl = card.findViewById<View>(R.id.gloss)
+        val glA = gl?.alpha ?: 0f
+        gl?.alpha = 0f
         card.draw(android.graphics.Canvas(raw))
-        card.foreground = fg
+        gl?.alpha = glA
         val img = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        android.graphics.Canvas(img).drawRoundRect(0f, 0f, w.toFloat(), h.toFloat(), 12 * d, 12 * d,
+        android.graphics.Canvas(img).drawRoundRect(0f, 0f, w.toFloat(), h.toFloat(), 16 * d, 16 * d,
             android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG).apply {
                 shader = android.graphics.BitmapShader(raw, android.graphics.Shader.TileMode.CLAMP, android.graphics.Shader.TileMode.CLAMP)
             })
         val loc = IntArray(2)
         card.getLocationOnScreen(loc)
         val rw = root.width.toFloat().coerceAtLeast(1f); val rh = root.height.toFloat().coerceAtLeast(1f)
+        // Para volver luego encogiéndose hasta esta misma tarjeta.
+        returnShot = img
+        returnLoc[0] = loc[0]; returnLoc[1] = loc[1]
+        val sc = (card.parent as? View)?.scaleX ?: 1f
+        returnSize = Pair(w * sc, h * sc)
         zoom.animate().cancel()
         zoom.setImageBitmap(img)
         zoom.pivotX = 0f; zoom.pivotY = 0f
-        zoom.scaleX = w * card.scaleX / rw; zoom.scaleY = h * card.scaleY / rh
+        zoom.scaleX = w * sc / rw; zoom.scaleY = h * sc / rh
         zoom.translationX = loc[0].toFloat(); zoom.translationY = loc[1].toFloat()
         zoom.alpha = 1f
         zoom.visibility = View.VISIBLE
         black.alpha = 0f
         black.visibility = View.VISIBLE
-        val curve = android.view.animation.PathInterpolator(0.3f, 0f, 0.1f, 1f)
+        // Curva "enfatizada" de Material: arranca con decisión y llega suave. El negro entra en el
+        // último tercio, cuando la tarjeta ya casi llena la pantalla.
+        val curve = android.view.animation.PathInterpolator(0.2f, 0f, 0f, 1f)
         zoom.animate().scaleX(1f).scaleY(1f).translationX(0f).translationY(0f)
             .setDuration(LAUNCH_ZOOM_MS).setInterpolator(curve)
             .withEndAction(then)
             .start()
         android.animation.ObjectAnimator.ofFloat(zoom, View.ALPHA, 1f, 0f).apply {
-            startDelay = LAUNCH_ZOOM_MS * 35 / 100; duration = LAUNCH_ZOOM_MS * 65 / 100; start()
+            startDelay = LAUNCH_ZOOM_MS * 62 / 100; duration = LAUNCH_ZOOM_MS * 38 / 100; start()
         }
         android.animation.ObjectAnimator.ofFloat(black, View.ALPHA, 0f, 1f).apply {
-            startDelay = LAUNCH_ZOOM_MS * 25 / 100; duration = LAUNCH_ZOOM_MS * 70 / 100; start()
+            startDelay = LAUNCH_ZOOM_MS * 50 / 100; duration = LAUNCH_ZOOM_MS * 45 / 100; start()
         }
+    }
+
+    /**
+     * Al volver de una app abierta desde una tarjeta: la imagen de la tarjeta, a pantalla
+     * completa, se encoge hasta su sitio (como en Apple TV). Si no hay de dónde, solo se quita el negro.
+     */
+    private fun returnHome() {
+        val shot = returnShot
+        val elapsed = android.os.SystemClock.uptimeMillis() - launchedAt
+        returnShot = null
+        if (shot == null || launchedAt == 0L || elapsed < 1200 || ambient) { hideLaunchZoom(animate = true); return }
+        val zoom = findViewById<ImageView>(R.id.launchZoom)
+        val black = findViewById<View>(R.id.launchBlack)
+        val root = zoom.parent as View
+        val rw = root.width.toFloat().coerceAtLeast(1f); val rh = root.height.toFloat().coerceAtLeast(1f)
+        returningHome = true
+        zoom.animate().cancel(); black.animate().cancel()
+        zoom.setImageBitmap(shot)
+        zoom.pivotX = 0f; zoom.pivotY = 0f
+        zoom.scaleX = 1f; zoom.scaleY = 1f; zoom.translationX = 0f; zoom.translationY = 0f
+        zoom.alpha = 1f
+        zoom.visibility = View.VISIBLE
+        black.visibility = View.GONE
+        Sounds.play(Sounds.BACK)
+        zoom.animate().scaleX(returnSize.first / rw).scaleY(returnSize.second / rh)
+            .translationX(returnLoc[0].toFloat()).translationY(returnLoc[1].toFloat())
+            .setDuration(420).setInterpolator(ease)
+            .withEndAction {
+                zoom.animate().alpha(0f).setDuration(140).withEndAction {
+                    returningHome = false
+                    hideLaunchZoom(animate = false)
+                }.start()
+            }.start()
+        // Seguro: pase lo que pase, en 1,2 s no queda nada encima.
+        handler.postDelayed({ if (returningHome) { returningHome = false; hideLaunchZoom(animate = false) } }, 1200)
     }
 
     /** Al volver de una app: quitar el negro con un fundido (o al momento). */
@@ -669,21 +945,18 @@ class MainActivity : Activity() {
         black.animate().alpha(0f).setDuration(260).withEndAction { black.visibility = View.GONE }.start()
     }
 
-    // Sonido de clic al moverse entre tarjetas (sintetizado, res/raw/click.wav).
-    private var sounds: android.media.SoundPool? = null
-    private var clickId = 0
     private var lastNavKey = 0L
 
     private fun setupSounds() {
-        val sp = android.media.SoundPool.Builder().setMaxStreams(2).setAudioAttributes(
-            android.media.AudioAttributes.Builder()
-                .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build()).build()
-        clickId = sp.load(this, R.raw.click, 1)
-        sounds = sp
+        Sounds.init(this)
         // Solo cuando el foco se mueve por una flecha del mando (no al volver de una app, etc.).
-        TileAdapter.onFocusSound = {
-            if (android.os.SystemClock.uptimeMillis() - lastNavKey < 400) sounds?.play(clickId, CLICK_VOLUME, CLICK_VOLUME, 1, 0, 1f)
+        // Un sonido distinto al moverse, al ir deprisa y al cambiar de fila.
+        TileAdapter.onFocusSound = { kind ->
+            if (android.os.SystemClock.uptimeMillis() - lastNavKey < 400) Sounds.play(when (kind) {
+                TileAdapter.Sound.LIGHT -> Sounds.LIGHT
+                TileAdapter.Sound.ROW -> Sounds.ROW
+                else -> Sounds.MOVE
+            })
         }
     }
 
@@ -710,12 +983,16 @@ class MainActivity : Activity() {
             .start()
     }
 
-    /** Modo noche (temporizador de Dormir activo): fotos y reloj un poco más oscuros. */
-    private fun applyNight(on: Boolean) {
-        val f = if (on) GlassTextView.nightFilter() else null
-        findViewById<ImageView>(R.id.wallA).colorFilter = f
-        findViewById<ImageView>(R.id.wallB).colorFilter = f
-        clock.night = on
+    /**
+     * Modo noche (temporizador de Dormir activo): foto, montaña y reloj se oscurecen poco a poco
+     * (2 s) con un velo un pelín cálido; al quitarlo vuelven igual de suave.
+     */
+    private fun applyNight(on: Boolean, animate: Boolean) {
+        nightShade.animate().cancel()
+        val to = if (on) NIGHT_SHADE else 0f
+        if (!animate) { nightShade.alpha = to; return }
+        nightShade.animate().alpha(to).setDuration(if (on) 2000 else 1500)
+            .setInterpolator(android.view.animation.AccelerateDecelerateInterpolator()).start()
     }
 
     /** Mando desde el móvil: muestra la dirección a abrir en el iPhone. */
@@ -726,11 +1003,8 @@ class MainActivity : Activity() {
                 .firstOrNull { !it.isLoopbackAddress && it is java.net.Inet4Address }?.hostAddress
         } catch (e: Exception) { null }
         val url = if (ip != null) "http://$ip:${RemoteService.PORT}" else getString(R.string.remote_no_wifi)
-        AlertDialog.Builder(this, R.style.Theme_Launcher_Dialog)
-            .setTitle(R.string.remote_title)
-            .setMessage(getString(R.string.remote_message, url, RemoteService.pin(this)))
-            .setPositiveButton(android.R.string.ok, null)
-            .show()
+        menus.show(getString(R.string.remote_title), listOf(TvMenu.Item(getString(R.string.ok_button)) { }),
+            message = getString(R.string.remote_message, url, RemoteService.pin(this)))
     }
 
     /** Temporizador de apagado (tile Dormir). */
@@ -743,24 +1017,17 @@ class MainActivity : Activity() {
         }.start()
         val remaining = Sleep.remainingMinutes(this)
         val options = listOf(15, 30, 45, 60, 90, 120)
-        val labels = ArrayList<String>()
-        val actions = ArrayList<() -> Unit>()
-        if (remaining != null) {
-            labels.add(getString(R.string.sleep_cancel_timer, remaining))
-            actions.add { Sleep.cancel(this); toast(getString(R.string.sleep_cancelled)) }
-        }
-        labels.add(getString(R.string.sleep_now)); actions.add {
+        val items = ArrayList<TvMenu.Item>()
+        if (remaining != null) items.add(TvMenu.Item(getString(R.string.sleep_cancel_timer, remaining)) {
+            Sleep.cancel(this); toast(getString(R.string.sleep_cancelled))
+        })
+        items.add(TvMenu.Item(getString(R.string.sleep_now)) {
             Thread { if (!Sleep.sleepNow(this)) runOnUiThread { toast(getString(R.string.sleep_no_admin)) } }.start()
-        }
-        for (m in options) {
-            labels.add(getString(R.string.sleep_minutes, m))
-            actions.add { Sleep.schedule(this, m); toast(getString(R.string.sleep_set, m)) }
-        }
-        labels.add(getString(R.string.menu_cancel)); actions.add { }
-        AlertDialog.Builder(this, R.style.Theme_Launcher_Dialog)
-            .setTitle(R.string.sleep_title)
-            .setItems(labels.toTypedArray()) { _, which -> actions[which]() }
-            .show()
+        })
+        for (m in options) items.add(TvMenu.Item(getString(R.string.sleep_minutes, m)) {
+            Sleep.schedule(this, m); toast(getString(R.string.sleep_set, m))
+        })
+        menus.show(getString(R.string.sleep_title), items)
     }
 
     /**
@@ -788,9 +1055,8 @@ class MainActivity : Activity() {
             packageManager.getApplicationInfo(tile.packageName, 0).flags and ApplicationInfo.FLAG_SYSTEM != 0
         } catch (e: Exception) { true }
 
-        val labels = ArrayList<String>()
-        val actions = ArrayList<() -> Unit>()
-        fun item(text: Int, action: () -> Unit) { labels.add(getString(text)); actions.add(action) }
+        val items = ArrayList<TvMenu.Item>()
+        fun item(text: Int, action: () -> Unit) { items.add(TvMenu.Item(getString(text), action)) }
 
         if (inDock) {
             item(R.string.menu_remove_dock) {
@@ -814,22 +1080,20 @@ class MainActivity : Activity() {
         item(R.string.menu_app_info) {
             tryStart(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + tile.packageName)))
         }
-        item(R.string.menu_cancel) { }
-
-        AlertDialog.Builder(this, R.style.Theme_Launcher_Dialog)
-            .setTitle(tile.label)
-            .setItems(labels.toTypedArray()) { _, which -> actions[which]() }
-            .show()
+        // El menú sale creciendo desde la tarjeta y se queda a su lado (Atrás lo cierra).
+        val anchor = currentFocus?.findViewById<View>(R.id.card)
+        popBack()
+        menus.show(if (anchor == null) tile.label else null, items, anchor)
         return true
     }
 
     /** Menú al mantener pulsado OK en Conexiones y sistema: recolocar la tarjeta. */
     private fun showSystemMenu(tile: Tile): Boolean {
-        val labels = arrayOf(getString(R.string.menu_move), getString(R.string.menu_cancel))
-        AlertDialog.Builder(this, R.style.Theme_Launcher_Dialog)
-            .setTitle(tile.label)
-            .setItems(labels) { _, which -> if (which == 0) startMoving(tile, inSystem = true) }
-            .show()
+        val anchor = currentFocus?.findViewById<View>(R.id.card)
+        popBack()
+        menus.show(if (anchor == null) tile.label else null, listOf(
+            TvMenu.Item(getString(R.string.menu_move)) { startMoving(tile, inSystem = true) },
+            TvMenu.Item(getString(R.string.menu_cancel)) { }), anchor)
         return true
     }
 
@@ -859,8 +1123,8 @@ class MainActivity : Activity() {
         private const val ROW_EDGE_DP = 40
         private const val PROGRAM_TILE_DP = 200
         private const val IDLE_MS = 5 * 60_000L
-        private const val LAUNCH_ZOOM_MS = 380L
-        private const val CLICK_VOLUME = 0.15f   // clic de navegación (0–1); 0,35 era alto
+        private const val LAUNCH_ZOOM_MS = 450L
+        private const val NIGHT_SHADE = 0.38f   // = las fotos al 62 % de brillo, como antes
         private const val TAG = "LauncherTV"
         private val AIRPLAY_RECEIVERS = listOf(
             "io.github.jqssun.airplay",        // AirPlay Server (código abierto, UxPlay) — paso6_airplay.sh
@@ -870,7 +1134,23 @@ class MainActivity : Activity() {
         )
     }
 
-    private fun toast(text: String) {
-        Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
+    /** Aviso propio: baja desde arriba a la derecha y se va solo. */
+    private val hideToast = Runnable {
+        toastView.animate().alpha(0f).translationY(-12 * resources.displayMetrics.density).setDuration(250)
+            .withEndAction { toastView.visibility = View.GONE }.start()
+    }
+
+    private fun toast(text: String, long: Boolean = false) {
+        val d = resources.displayMetrics.density
+        handler.removeCallbacks(hideToast)
+        toastView.animate().cancel()
+        toastView.text = text
+        if (toastView.visibility != View.VISIBLE || toastView.alpha < 0.05f) {
+            toastView.visibility = View.VISIBLE
+            toastView.alpha = 0f
+            toastView.translationY = -12 * d
+        }
+        toastView.animate().alpha(1f).translationY(0f).setDuration(300).setInterpolator(ease).start()
+        handler.postDelayed(hideToast, if (long) 4500 else 2600)
     }
 }

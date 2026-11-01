@@ -51,7 +51,13 @@ sealed class Tile {
         override val label: String,
         val posterUri: String?,
         val intentUri: String?,
-        val packageName: String
+        val packageName: String,
+        /** Título grande bajo el póster enfocado. */
+        val title: String = label,
+        /** Segunda línea: episodio y lo que queda ("T2 · E5 · quedan 23 min"). */
+        val subtitle: String = "",
+        /** Cuánto llevas visto (0–1), o null si la app no lo publica. */
+        val progress: Float? = null
     ) : Tile()
 
     /** Acceso directo genérico (Wi-Fi, Bluetooth…). */

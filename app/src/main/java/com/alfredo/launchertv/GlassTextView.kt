@@ -26,7 +26,27 @@ class GlassTextView @JvmOverloads constructor(
 ) : View(context, attrs) {
 
     var text: String = ""
-        set(value) { if (field != value) { field = value; requestLayout(); invalidate() } }
+        set(value) {
+            if (field == value) return
+            // Cambio de minuto: la cifra que cambia se funde con la nueva (las demás no se mueven).
+            if (field.isNotEmpty() && field.length == value.length && cacheText != null) {
+                prevText = cacheText; prevShadow = cacheShadow; prevOverlay = cacheOverlay
+                digitFadeStart = android.os.SystemClock.uptimeMillis()
+            } else {
+                prevText = null; prevShadow = null; prevOverlay = null
+            }
+            field = value; requestLayout(); invalidate()
+        }
+
+    // Hora anterior, para fundirla con la nueva durante DIGIT_FADE_MS.
+    private var prevText: Bitmap? = null
+    private var prevShadow: Bitmap? = null
+    private var prevOverlay: Bitmap? = null
+    private var digitFadeStart = 0L
+    private var blendMask: Bitmap? = null
+    private val blendPaint = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val addMode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.ADD)
+    private val layerPaint = Paint(Paint.FILTER_BITMAP_FLAG)
 
     var textSizePx: Float = 200f
         set(value) { field = value; fill.textSize = value; gloss.textSize = value; shadow.textSize = value; edge.textSize = value; requestLayout(); invalidate() }
@@ -225,10 +245,38 @@ class GlassTextView @JvmOverloads constructor(
         // (Medido en la tele: dibujar las letras gigantes con sombra en cada fotograma era lo
         // que bajaba el cambio de foto a 20–30 fps.)
         ensureCache(x, y)
-        val textMask = cacheText ?: return
+        val newMask = cacheText ?: return
+
+        // Cambio de minuto: mezcla exacta de la forma vieja y la nueva (suma con ADD), así las cifras
+        // que no cambian se quedan quietas y opacas y solo la que cambia se funde.
+        var dp = 1f
+        val pt = prevText
+        if (pt != null && pt.width == newMask.width && pt.height == newMask.height) {
+            dp = fadeCurve((android.os.SystemClock.uptimeMillis() - digitFadeStart) / DIGIT_FADE_MS.toFloat())
+            if (dp >= 1f) { prevText = null; prevShadow = null; prevOverlay = null }
+        } else if (pt != null) { prevText = null; prevShadow = null; prevOverlay = null }
+        val textMask = if (dp < 1f && pt != null) {
+            val b = blendMask?.takeIf { it.width == newMask.width && it.height == newMask.height }
+                ?: Bitmap.createBitmap(newMask.width, newMask.height, Bitmap.Config.ALPHA_8).also { blendMask = it }
+            val bc = Canvas(b)
+            bc.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR)
+            blendPaint.xfermode = null; blendPaint.alpha = (255 * (1f - dp)).toInt()
+            bc.drawBitmap(pt, 0f, 0f, blendPaint)
+            blendPaint.xfermode = addMode; blendPaint.alpha = (255 * dp).toInt()
+            bc.drawBitmap(newMask, 0f, 0f, blendPaint)
+            blendPaint.xfermode = null
+            postInvalidateOnAnimation()
+            b
+        } else newMask
 
         // 1) Sombra suave.
-        if (!debugNoShadow) cacheShadow?.let { canvas.drawBitmap(it, 0f, 0f, null) }
+        if (!debugNoShadow) {
+            val ps = prevShadow
+            if (dp < 1f && ps != null) {
+                layerPaint.alpha = (255 * (1f - dp)).toInt(); canvas.drawBitmap(ps, 0f, 0f, layerPaint)
+                layerPaint.alpha = (255 * dp).toInt(); cacheShadow?.let { canvas.drawBitmap(it, 0f, 0f, layerPaint) }
+            } else cacheShadow?.let { canvas.drawBitmap(it, 0f, 0f, null) }
+        }
 
         // 2) Relleno: el fondo de detrás, alineado píxel a píxel (la imagen de las cifras es
         //    ALPHA_8: la gráfica la colorea con el fondo).
@@ -266,7 +314,11 @@ class GlassTextView @JvmOverloads constructor(
         }
 
         // 3–4) Brillo superior y borde fino (ya pintados en su imagen).
-        cacheOverlay?.let { canvas.drawBitmap(it, 0f, 0f, null) }
+        val po = prevOverlay
+        if (dp < 1f && po != null) {
+            layerPaint.alpha = (255 * (1f - dp)).toInt(); canvas.drawBitmap(po, 0f, 0f, layerPaint)
+            layerPaint.alpha = (255 * dp).toInt(); cacheOverlay?.let { canvas.drawBitmap(it, 0f, 0f, layerPaint) }
+        } else cacheOverlay?.let { canvas.drawBitmap(it, 0f, 0f, null) }
 
         // 5) Profundidad: borrar el reloj (y su sombra) donde la montaña queda por delante.
         //    Es lo mismo que pintar la montaña encima (es la propia foto), pero sin capas extra.
@@ -305,6 +357,8 @@ class GlassTextView @JvmOverloads constructor(
     companion object {
         /** Igual que el fundido de la foto en Wallpapers. */
         const val FADE_MS = 1_600L
+        /** Fundido de la cifra que cambia al cambiar el minuto. */
+        const val DIGIT_FADE_MS = 600L
 
         /** Curva del fundido (= AccelerateDecelerateInterpolator, la que usa la foto). */
         fun fadeCurve(t: Float): Float = (Math.cos((t.coerceIn(0f, 1f) + 1) * Math.PI) / 2.0 + 0.5).toFloat()

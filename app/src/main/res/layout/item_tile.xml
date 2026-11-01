@@ -1,9 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Tarjeta: "box" es lo que crece e se inclina con el foco (lleva dentro la tarjeta y el marco).
+  El marco va por FUERA de la tarjeta (sobresale 7 dp: 4 de hueco + 3 de trazo), así se ve también
+  sobre tarjetas blancas. Debajo: el nombre (filas con nombre) o, en "Continuar viendo", el título
+  y lo que queda.
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:gravity="center_horizontal"
+    android:gravity="start"
     android:padding="12dp"
     android:clipChildren="false"
     android:clipToPadding="false"
@@ -11,64 +17,142 @@
     android:focusableInTouchMode="true">
 
     <FrameLayout
-        android:id="@+id/card"
-        android:layout_width="224dp"
-        android:layout_height="126dp"
-        android:background="@drawable/tile_bg"
-        android:elevation="6dp">
-
-        <ImageView
-            android:id="@+id/banner"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:scaleType="centerCrop"
-            android:contentDescription="@null" />
-
-        <ImageView
-            android:id="@+id/icon"
-            android:layout_width="64dp"
-            android:layout_height="64dp"
-            android:layout_gravity="center"
-            android:contentDescription="@null" />
+        android:id="@+id/box"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:clipChildren="false"
+        android:clipToPadding="false">
 
         <View
+            android:id="@+id/ring"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="@drawable/tile_gloss" />
-
-        <View
-            android:id="@+id/shine"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@drawable/tile_shine"
+            android:layout_margin="-7dp"
+            android:background="@drawable/tile_focus"
             android:alpha="0" />
 
-        <ImageView
-            android:id="@+id/badge"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:layout_gravity="bottom|end"
-            android:layout_margin="8dp"
-            android:padding="4dp"
-            android:background="@drawable/badge_bg"
-            android:visibility="gone"
-            android:contentDescription="@null" />
+        <FrameLayout
+            android:id="@+id/card"
+            android:layout_width="224dp"
+            android:layout_height="126dp"
+            android:background="@drawable/tile_bg"
+            android:elevation="6dp">
+
+            <ImageView
+                android:id="@+id/banner"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:contentDescription="@null" />
+
+            <ImageView
+                android:id="@+id/icon"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_gravity="center"
+                android:contentDescription="@null" />
+
+            <!-- Solo en "Continuar viendo": sombra baja y barra de progreso. -->
+            <View
+                android:id="@+id/shade"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_gravity="bottom"
+                android:background="@drawable/poster_shade"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/prog"
+                android:layout_width="match_parent"
+                android:layout_height="4dp"
+                android:layout_gravity="bottom"
+                android:layout_marginStart="10dp"
+                android:layout_marginEnd="10dp"
+                android:layout_marginBottom="8dp"
+                android:background="@drawable/progress_track"
+                android:visibility="gone">
+
+                <View
+                    android:id="@+id/progFill"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/progress_fill"
+                    android:transformPivotX="0dp" />
+            </FrameLayout>
+
+            <View
+                android:id="@+id/gloss"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/tile_gloss"
+                android:alpha="0" />
+
+            <View
+                android:id="@+id/shine"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:alpha="0" />
+
+            <ImageView
+                android:id="@+id/badge"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_gravity="bottom|end"
+                android:layout_margin="8dp"
+                android:padding="4dp"
+                android:background="@drawable/badge_bg"
+                android:visibility="gone"
+                android:contentDescription="@null" />
+        </FrameLayout>
     </FrameLayout>
 
     <TextView
         android:id="@+id/label"
         android:layout_width="224dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="12dp"
         android:gravity="center"
         android:maxLines="1"
         android:ellipsize="end"
         android:textColor="#FFFFFFFF"
-        android:textSize="15sp"
-        android:fontFamily="sans-serif-medium"
+        android:textSize="20sp"
         android:alpha="0"
         android:shadowColor="#99000000"
         android:shadowDx="0"
         android:shadowDy="2"
         android:shadowRadius="8" />
+
+    <LinearLayout
+        android:id="@+id/info"
+        android:layout_width="280dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="vertical"
+        android:alpha="0"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/infoTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#FFFFFFFF"
+            android:textSize="20sp"
+            android:shadowColor="#99000000"
+            android:shadowDy="2"
+            android:shadowRadius="8" />
+
+        <TextView
+            android:id="@+id/infoSub"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#C7FFFFFF"
+            android:textSize="16sp"
+            android:shadowColor="#99000000"
+            android:shadowDy="2"
+            android:shadowRadius="8" />
+    </LinearLayout>
 </LinearLayout>

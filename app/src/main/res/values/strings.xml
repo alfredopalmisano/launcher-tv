@@ -3,7 +3,7 @@
     <string name="app_name">Inicio</string>
     <string name="all_apps">Apps</string>
     <string name="all_apps_title">Todas las aplicaciones</string>
-    <string name="all_apps_hint">OK para abrir · Mantén pulsado OK para añadir o quitar del dock</string>
+    <string name="all_apps_hint">OK para abrir · Mantén OK para añadir o quitar del dock</string>
     <string name="added_to_dock">%1$s añadida al dock</string>
     <string name="removed_from_dock">%1$s quitada del dock</string>
     <string name="cannot_open">No se pudo abrir %1$s</string>
@@ -35,5 +35,8 @@
     <string name="remote">Mando</string>
     <string name="remote_title">Mando desde el móvil</string>
     <string name="remote_message">Abre en el iPhone (misma Wi-Fi):\n\n%1$s\n\nPIN de esta tele: %2$s\n\nEn Safari: Compartir → "Añadir a pantalla de inicio" para tenerlo como una app.</string>
+    <string name="ok_button">Vale</string>
+    <string name="input_connected">%1$s conectada</string>
+    <string name="input_disconnected">%1$s desconectada</string>
     <string name="remote_no_wifi">La tele no está conectada a la red</string>
 </resources>
