@@ -37,7 +37,8 @@ class TvMenu(private val activity: Activity) {
 
         val panel = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
-            background = activity.getDrawable(if (small) R.drawable.menu_bg_small else R.drawable.menu_bg)
+            // Panel con el canto iluminado (como el cristal de quickLiquid).
+            background = RimDrawable(if (small) 0xF519191B.toInt() else 0xF219191B.toInt(), (if (small) 20 else 24) * d, d)
             val pad = ((if (small) 8 else 12) * d).toInt()
             setPadding(pad, if (title != null) (20 * d).toInt() else pad, pad, pad)
             elevation = 24 * d
@@ -82,7 +83,7 @@ class TvMenu(private val activity: Activity) {
                 setOnFocusChangeListener { v, has ->
                     (v as TextView).setTextColor(if (has) 0xFF141415.toInt() else 0xE0FFFFFF.toInt())
                     if (has) {
-                        hl.animate().translationY(v.top.toFloat()).setDuration(220).setInterpolator(curve).start()
+                        slideBar(hl, v.top.toFloat(), rowH)
                         Sounds.play(Sounds.MOVE)
                     }
                 }
@@ -141,6 +142,36 @@ class TvMenu(private val activity: Activity) {
     }
 
     private fun px(dp: Int): Int = (dp * d).toInt()
+
+    private var barAnim: android.animation.ValueAnimator? = null
+
+    /**
+     * La barra de la opción elegida viaja como una gota (idea de quickLiquid): el borde que va
+     * delante se adelanta, la barra se estira y el de detrás la alcanza; a mitad, un pelín más estrecha.
+     */
+    private fun slideBar(hl: View, to: Float, rowH: Int) {
+        barAnim?.cancel()
+        val fromTop = hl.translationY
+        val fromBottom = fromTop + hl.height * hl.scaleY
+        val toBottom = to + rowH
+        if (hl.height == 0 || kotlin.math.abs(to - fromTop) < 1f) { hl.translationY = to; return }
+        hl.pivotY = 0f; hl.pivotX = hl.width / 2f
+        val down = to > fromTop
+        barAnim = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 300
+            addUpdateListener { a ->
+                val t = a.animatedValue as Float
+                val lead = curve.getInterpolation((t / 0.7f).coerceIn(0f, 1f))
+                val trail = curve.getInterpolation(((t - 0.3f) / 0.7f).coerceIn(0f, 1f))
+                val top = if (down) fromTop + (to - fromTop) * trail else fromTop + (to - fromTop) * lead
+                val bottom = if (down) fromBottom + (toBottom - fromBottom) * lead else fromBottom + (toBottom - fromBottom) * trail
+                hl.translationY = top
+                hl.scaleY = ((bottom - top) / hl.height).coerceAtLeast(0.2f)
+                hl.scaleX = 1f - 0.03f * kotlin.math.sin(t * Math.PI).toFloat()
+            }
+            start()
+        }
+    }
 
     private fun estimateHeight(n: Int, rowH: Int, gap: Int, hasTitle: Boolean): Int =
         n * rowH + (n - 1) * gap + (16 * d).toInt() + if (hasTitle) (60 * d).toInt() else 0

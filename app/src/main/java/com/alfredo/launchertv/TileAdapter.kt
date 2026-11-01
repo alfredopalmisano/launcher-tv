@@ -139,9 +139,13 @@ class TileAdapter(
                 // Al pulsar: la tarjeta se hunde un instante (respuesta inmediata, como en Apple TV)
                 // y la app se abre creciendo desde ella (ver MainActivity.tryStart).
                 lastClicked = card
+                // Pulsación "líquida" (idea de quickLiquid): se aplasta un pelín (más de alto que de
+                // ancho) y vuelve con un rebote de muelle.
                 val s = focusScale()
-                box.animate().scaleX(1.04f).scaleY(1.04f).setDuration(90).setInterpolator(DecelerateInterpolator())
-                    .withEndAction { box.animate().scaleX(s).scaleY(s).setDuration(160).start() }
+                box.animate().scaleX(s * 0.955f).scaleY(s * 0.925f).setDuration(90).setInterpolator(DecelerateInterpolator())
+                    .withEndAction {
+                        box.animate().scaleX(s).scaleY(s).setDuration(360).setInterpolator(OvershootInterpolator(2.2f)).start()
+                    }
                     .start()
                 itemAt(bindingAdapterPosition)?.let(onClick)
                 lastClicked = null   // solo vale para la app que se abre con esta pulsación

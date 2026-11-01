@@ -156,6 +156,7 @@ class MainActivity : Activity() {
         bootShade = findViewById(R.id.bootShade)
         toastView = findViewById(R.id.toast)
         toastView.typeface = Fonts.medium(this)
+        toastView.background = RimDrawable(0xF019191B.toInt(), 14 * resources.displayMetrics.density, resources.displayMetrics.density)
         RemoteService.start(this)
         dock = addRow(R.string.row_favorites, dockAdapter)
         systemRow = addRow(R.string.row_system, systemAdapter)
@@ -183,6 +184,9 @@ class MainActivity : Activity() {
             placeClock(clockBox, p.plan, dm.heightPixels, p.photo.height)
             // Fondo de la pantalla de apps: la misma foto muy difuminada.
             overlayBg.setImageBitmap(p.blurred)
+            // Estante "cristal": se recalcula para la foto nueva en segundo plano.
+            lastPhoto = p.photo
+            if (shelfStyle() == STYLE_GLASS) computeGlass(animate = true)
         }
 
         // En el inicio solo se ve el dock, abajo (dentro de la zona segura); las demás filas están
@@ -196,6 +200,11 @@ class MainActivity : Activity() {
                 topSpace.requestLayout()
             }
             if (wanted > 0) dockTopPx = wanted.toFloat()
+            // El estante cambió de sitio: rehacer el cristal para su posición nueva.
+            if (wanted > 0 && wanted != glassTopFor && shelfStyle() == STYLE_GLASS && lastPhoto != null) {
+                glassTopFor = wanted
+                computeGlass(animate = false)
+            }
         }
         rowsScroll.viewTreeObserver.addOnGlobalFocusChangeListener { _, now -> scrollForFocus(now) }
 
@@ -473,6 +482,8 @@ class MainActivity : Activity() {
         dim.animate().alpha(if (on) 0.3f else 0f).setDuration(450).setInterpolator(ease).start()
         clockBox.animate().alpha(if (on) 0.5f else 1f).setDuration(450).setInterpolator(ease).start()
         showLowerRows(on)
+        // El cristal está calculado para el estante en su sitio: al subir la página, estante claro.
+        glassBg?.showGlass(!on)
     }
 
     /** Las filas de abajo solo se ven al bajar a ellas (en el inicio, solo el dock). */
@@ -502,7 +513,7 @@ class MainActivity : Activity() {
         if (ambient || movingId != null) return
         val box = focusedBox() ?: return
         sinking = box
-        box.animate().scaleX(1f).scaleY(1f).setStartDelay(0)
+        box.animate().scaleX(1f).scaleY(0.97f).setStartDelay(0)
             .setDuration(android.view.ViewConfiguration.getLongPressTimeout().toLong())
             .setInterpolator(android.view.animation.PathInterpolator(0.3f, 0f, 0.2f, 1f)).start()
     }
@@ -519,7 +530,7 @@ class MainActivity : Activity() {
         val box = sinking ?: focusedBox() ?: return
         sinking = null
         val s = focusScaleOf(box)
-        box.animate().scaleX(s).scaleY(s).setDuration(260).setInterpolator(android.view.animation.OvershootInterpolator(1.3f)).start()
+        box.animate().scaleX(s).scaleY(s).setDuration(360).setInterpolator(android.view.animation.OvershootInterpolator(2.2f)).start()
     }
 
     /** Efecto completo en la tarjeta donde se paró el recorrido rápido. */
@@ -712,7 +723,7 @@ class MainActivity : Activity() {
             if (first) {
                 // Estante de cristal detrás del dock (estilo Apple TV).
                 val shelf = android.widget.FrameLayout(this@MainActivity).apply {
-                    background = getDrawable(if (shelfLight()) R.drawable.dock_shelf_light else R.drawable.dock_shelf)
+                    background = shelfDrawable(shelfStyle())
                     clipChildren = false
                     clipToPadding = false
                     setPadding((8 * d).toInt(), (4 * d).toInt(), (8 * d).toInt(), (4 * d).toInt())
@@ -781,7 +792,7 @@ class MainActivity : Activity() {
         sys.add(Tile.Action("remote", getString(R.string.remote), R.drawable.ic_phone))
         sys.add(Tile.Store)
         // Cambiar el estante del dock entre oscuro y claro (muestra el que pondrá).
-        sys.add(Tile.Action("shelf", getString(if (shelfLight()) R.string.shelf_dark else R.string.shelf_light), R.drawable.ic_contrast))
+        sys.add(Tile.Action("shelf", getString(STYLE_NAMES[(shelfStyle() + 1) % 3]), R.drawable.ic_contrast))
         sys.add(Tile.SettingsTile)
         submitRow(systemRow, systemAdapter, systemOrder.apply(sys))
         if (before != null) slideFrom(systemRow, systemAdapter, before, fadeNew = true)
@@ -832,9 +843,11 @@ class MainActivity : Activity() {
                 "bt" -> if (!tryStart(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))) tryStart(Intent(Settings.ACTION_SETTINGS))
                 "remote" -> showRemoteInfo()
                 "shelf" -> {
-                    prefs().edit().putBoolean(KEY_SHELF_LIGHT, !shelfLight()).apply()
+                    // Oscuro → claro → cristal → oscuro…
+                    val next = (shelfStyle() + 1) % 3
+                    prefs().edit().putInt(KEY_SHELF_STYLE, next).apply()
                     applyShelf(animate = true)
-                    toast(getString(if (shelfLight()) R.string.shelf_light else R.string.shelf_dark))
+                    toast(getString(STYLE_NAMES[next]))
                     val id = tile.id
                     refreshSystem()
                     focusTile(systemRow, systemAdapter, id)
@@ -1173,7 +1186,11 @@ class MainActivity : Activity() {
         private const val NIGHT_SHADE = 0.38f
         /** El dock, en el inicio, queda a esta distancia del borde de abajo (zona segura: 27 dp). */
         private const val DOCK_BOTTOM_DP = 32
-        private const val KEY_SHELF_LIGHT = "shelf_light"
+        private const val KEY_SHELF_STYLE = "shelf_style"
+        private const val STYLE_DARK = 0
+        private const val STYLE_LIGHT = 1
+        private const val STYLE_GLASS = 2
+        private val STYLE_NAMES = intArrayOf(R.string.shelf_dark, R.string.shelf_light, R.string.shelf_glass)
         private const val KEY_HIDDEN_PROGRAMS = "hidden_programs"   // = las fotos al 62 % de brillo, como antes
         private const val TAG = "LauncherTV"
         private val AIRPLAY_RECEIVERS = listOf(
@@ -1185,18 +1202,70 @@ class MainActivity : Activity() {
     }
 
     private fun prefs() = getSharedPreferences("launcher", Context.MODE_PRIVATE)
-    private fun shelfLight() = prefs().getBoolean(KEY_SHELF_LIGHT, false)
+    /** 0 oscuro, 1 claro, 2 cristal (antes solo había oscuro/claro con un sí/no). */
+    private fun shelfStyle(): Int {
+        val p = prefs()
+        if (!p.contains(KEY_SHELF_STYLE) && p.getBoolean("shelf_light", false)) return STYLE_LIGHT
+        return p.getInt(KEY_SHELF_STYLE, STYLE_DARK).coerceIn(0, 2)
+    }
 
-    /** Estante del dock oscuro (humo) o claro; al cambiarlo, se funde de uno a otro. */
+    private var glassBg: ShelfGlassDrawable? = null
+    private var glassTopFor = 0
+    private var lastPhoto: Bitmap? = null
+    private val glassWorker = java.util.concurrent.Executors.newSingleThreadExecutor()
+
+    /** Estante oscuro (humo) o claro, con el canto iluminado; o "cristal" (lente calculada por foto). */
+    private fun shelfDrawable(style: Int): android.graphics.drawable.Drawable {
+        val d = resources.displayMetrics.density
+        val light = RimDrawable(0x33FFFFFF, 32 * d, 1 * d, rimTop = 0.45f, rimMid = 0.12f, rimBottom = 0.2f)
+        return when (style) {
+            STYLE_LIGHT -> light
+            STYLE_GLASS -> ShelfGlassDrawable(light).also { glassBg = it }
+            else -> RimDrawable(0x5C0E0E10, 32 * d, 1 * d)
+        }
+    }
+
+    /** Cambia el estante fundiéndose del anterior al nuevo. */
     private fun applyShelf(animate: Boolean) {
         val shelf = (if (::dock.isInitialized) dock.parent as? View else null) ?: return
-        val to = getDrawable(if (shelfLight()) R.drawable.dock_shelf_light else R.drawable.dock_shelf) ?: return
+        val style = shelfStyle()
+        if (style != STYLE_GLASS) glassBg = null
+        val to = shelfDrawable(style)
         val from = shelf.background
-        if (!animate || from == null) { shelf.background = to; return }
-        val t = android.graphics.drawable.TransitionDrawable(arrayOf(from, to))
-        t.isCrossFadeEnabled = true
-        shelf.background = t
-        t.startTransition(400)
+        if (!animate || from == null) shelf.background = to
+        else {
+            val t = android.graphics.drawable.TransitionDrawable(arrayOf(from, to))
+            t.isCrossFadeEnabled = true
+            shelf.background = t
+            t.startTransition(400)
+        }
+        if (style == STYLE_GLASS) computeGlass(animate = false)
+    }
+
+    /**
+     * Calcula el cristal para la foto actual, en segundo plano, con el estante en su sitio del
+     * inicio (el centro es transparente; solo el bisel del borde dobla la foto como una lente).
+     */
+    private fun computeGlass(animate: Boolean) {
+        val photo = lastPhoto ?: return
+        val shelf = dock.parent as? View ?: return
+        if (shelf.width == 0) { shelf.post { computeGlass(animate) }; return }
+        val d = resources.displayMetrics.density
+        val loc = IntArray(2); shelf.getLocationOnScreen(loc)
+        val homeTop = (loc[1] + rowsScroll.scrollY - rowsScroll.translationY - shelf.translationY).toInt()
+        val spec = LiquidShelf.Spec(loc[0], homeTop, shelf.width, shelf.height, 32 * d, d)
+        val dm = resources.displayMetrics
+        val target = glassBg ?: return
+        glassWorker.execute {
+            val bmp = LiquidShelf.render(photo, dm.widthPixels, dm.heightPixels, spec)
+            handler.post {
+                if (glassBg === target && bmp != null) {
+                    bmp.prepareToDraw()
+                    target.setGlass(bmp, animate)
+                    target.showGlass(!deep)
+                }
+            }
+        }
     }
 
     /** Aviso propio: baja desde arriba a la derecha y se va solo. */
