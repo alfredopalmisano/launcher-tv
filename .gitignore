@@ -7,3 +7,10 @@ local.properties
 # Los fondos se descargan al compilar (ver scripts/descargar_fondos.sh)
 app/src/main/assets/wallpapers/
 app/src/main/assets/fonts/
+# Lo que generan los scripts de instalar/ al ejecutarse
+instalar/copia_seguridad/
+instalar/capturas/
+instalar/herramientas/
+instalar/*.apk
+instalar/*_log.txt
+instalar/*.txt

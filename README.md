@@ -13,6 +13,10 @@ Pantalla de inicio minimalista, estilo Apple TV, para mi Xiaomi TV (MiTV-MSSP3, 
 Cada `push` a `main` compila el APK en GitHub Actions y lo publica en la release **latest**:
 `https://github.com/alfredopalmisano/launcher-tv/releases/download/latest/launcher-tv.apk`
 
+## Instalar en otra tele
+
+Guía y scripts en [`instalar/LEEME.md`](instalar/LEEME.md) (Android TV / Google TV; Roku no sirve).
+
 Para compilar en local: Android Studio o `gradle assembleRelease` (antes, `bash scripts/descargar_fondos.sh`).
 
 ## Firma
