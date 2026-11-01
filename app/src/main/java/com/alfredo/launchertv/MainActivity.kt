@@ -185,9 +185,18 @@ class MainActivity : Activity() {
             overlayBg.setImageBitmap(p.blurred)
         }
 
-        // El estante del dock empieza a 248 dp; debajo asoma Conexiones y sistema. Al bajar, la
-        // página sube lo justo para que la fila enfocada (con su nombre) quede en la zona segura.
-        dockTopPx = 248 * dm.density
+        // En el inicio solo se ve el dock, abajo (dentro de la zona segura); las demás filas están
+        // ocultas hasta que bajas. Al bajar, la página sube lo justo para que la fila enfocada
+        // (con su nombre) quede en la zona segura.
+        rowsScroll.viewTreeObserver.addOnGlobalLayoutListener {
+            val firstRow = rowsBox.getChildAt(1) ?: return@addOnGlobalLayoutListener
+            val wanted = rowsScroll.height - firstRow.height - (DOCK_BOTTOM_DP * dm.density).toInt()
+            if (wanted > 0 && topSpace.layoutParams.height != wanted) {
+                topSpace.layoutParams = topSpace.layoutParams.apply { height = wanted }
+                topSpace.requestLayout()
+            }
+            if (wanted > 0) dockTopPx = wanted.toFloat()
+        }
         rowsScroll.viewTreeObserver.addOnGlobalFocusChangeListener { _, now -> scrollForFocus(now) }
 
         val gridWidthDp = dm.widthPixels / dm.density - 2 * 52
@@ -424,9 +433,6 @@ class MainActivity : Activity() {
         }
         (dock.parent as? View)?.let { appear(it, 0) }   // el estante
         dockItems.forEachIndexed { i, v -> appear(v, kotlin.math.abs(i - fc) * 40L) }
-        val sysRowBox = systemRow.parent as? LinearLayout
-        sysRowBox?.getChildAt(0)?.takeIf { it is TextView }?.let { appear(it, 80) }
-        visible(systemRow).forEachIndexed { i, v -> appear(v, 80 + kotlin.math.abs(i - fc) * 40L) }
     }
 
     /** Fila enfocada: el estante (dock) arriba del todo; las demás, subiendo lo justo. */
@@ -466,6 +472,16 @@ class MainActivity : Activity() {
         deep = on
         dim.animate().alpha(if (on) 0.3f else 0f).setDuration(450).setInterpolator(ease).start()
         clockBox.animate().alpha(if (on) 0.5f else 1f).setDuration(450).setInterpolator(ease).start()
+        showLowerRows(on)
+    }
+
+    /** Las filas de abajo solo se ven al bajar a ellas (en el inicio, solo el dock). */
+    private fun showLowerRows(on: Boolean) {
+        for (i in 2 until rowsBox.childCount) {
+            val r = rowsBox.getChildAt(i)
+            r.animate().cancel()
+            r.animate().alpha(if (on) 1f else 0f).setDuration(if (on) 300L else 220L).setInterpolator(ease).start()
+        }
     }
 
     // ---- Mantener OK: la tarjeta se hunde poco a poco hasta que sale su menú ----
@@ -696,7 +712,7 @@ class MainActivity : Activity() {
             if (first) {
                 // Estante de cristal detrás del dock (estilo Apple TV).
                 val shelf = android.widget.FrameLayout(this@MainActivity).apply {
-                    background = getDrawable(R.drawable.dock_shelf)
+                    background = getDrawable(if (shelfLight()) R.drawable.dock_shelf_light else R.drawable.dock_shelf)
                     clipChildren = false
                     clipToPadding = false
                     setPadding((8 * d).toInt(), (4 * d).toInt(), (8 * d).toInt(), (4 * d).toInt())
@@ -715,7 +731,9 @@ class MainActivity : Activity() {
                 addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             }
         }
+        if (rowsBox.childCount >= 2) row.alpha = 0f   // filas de abajo: ocultas hasta bajar
         rowsBox.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        if (first) applyShelf(animate = false)
         return list
     }
 
@@ -761,6 +779,8 @@ class MainActivity : Activity() {
         sys.add(Tile.Action("reboot", getString(R.string.reboot), R.drawable.ic_restart))
         sys.add(Tile.Action("remote", getString(R.string.remote), R.drawable.ic_phone))
         sys.add(Tile.Store)
+        // Cambiar el estante del dock entre oscuro y claro (muestra el que pondrá).
+        sys.add(Tile.Action("shelf", getString(if (shelfLight()) R.string.shelf_dark else R.string.shelf_light), R.drawable.ic_contrast))
         sys.add(Tile.SettingsTile)
         submitRow(systemRow, systemAdapter, systemOrder.apply(sys))
         if (before != null) slideFrom(systemRow, systemAdapter, before, fadeNew = true)
@@ -810,6 +830,14 @@ class MainActivity : Activity() {
                 "wifi" -> if (!tryStart(Intent(Settings.ACTION_WIFI_SETTINGS))) tryStart(Intent(Settings.ACTION_SETTINGS))
                 "bt" -> if (!tryStart(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))) tryStart(Intent(Settings.ACTION_SETTINGS))
                 "remote" -> showRemoteInfo()
+                "shelf" -> {
+                    prefs().edit().putBoolean(KEY_SHELF_LIGHT, !shelfLight()).apply()
+                    applyShelf(animate = true)
+                    toast(getString(if (shelfLight()) R.string.shelf_light else R.string.shelf_dark))
+                    val id = tile.id
+                    refreshSystem()
+                    focusTile(systemRow, systemAdapter, id)
+                }
                 "reboot" -> menus.show(getString(R.string.reboot_title), listOf(
                     TvMenu.Item(getString(R.string.reboot)) {
                         Thread { if (TvAdb.reboot(this) == null) runOnUiThread { toast(getString(R.string.sleep_no_admin)) } }.start()
@@ -1124,7 +1152,10 @@ class MainActivity : Activity() {
         private const val PROGRAM_TILE_DP = 200
         private const val IDLE_MS = 5 * 60_000L
         private const val LAUNCH_ZOOM_MS = 450L
-        private const val NIGHT_SHADE = 0.38f   // = las fotos al 62 % de brillo, como antes
+        private const val NIGHT_SHADE = 0.38f
+        /** El dock, en el inicio, queda a esta distancia del borde de abajo (zona segura: 27 dp). */
+        private const val DOCK_BOTTOM_DP = 32
+        private const val KEY_SHELF_LIGHT = "shelf_light"   // = las fotos al 62 % de brillo, como antes
         private const val TAG = "LauncherTV"
         private val AIRPLAY_RECEIVERS = listOf(
             "io.github.jqssun.airplay",        // AirPlay Server (código abierto, UxPlay) — paso6_airplay.sh
@@ -1132,6 +1163,21 @@ class MainActivity : Activity() {
             "com.sand.airdroidcast.tv",        // AirDroid Cast
             "com.airbeamtv.receiver"           // AirBeamTV
         )
+    }
+
+    private fun prefs() = getSharedPreferences("launcher", Context.MODE_PRIVATE)
+    private fun shelfLight() = prefs().getBoolean(KEY_SHELF_LIGHT, false)
+
+    /** Estante del dock oscuro (humo) o claro; al cambiarlo, se funde de uno a otro. */
+    private fun applyShelf(animate: Boolean) {
+        val shelf = (if (::dock.isInitialized) dock.parent as? View else null) ?: return
+        val to = getDrawable(if (shelfLight()) R.drawable.dock_shelf_light else R.drawable.dock_shelf) ?: return
+        val from = shelf.background
+        if (!animate || from == null) { shelf.background = to; return }
+        val t = android.graphics.drawable.TransitionDrawable(arrayOf(from, to))
+        t.isCrossFadeEnabled = true
+        shelf.background = t
+        t.startTransition(400)
     }
 
     /** Aviso propio: baja desde arriba a la derecha y se va solo. */
