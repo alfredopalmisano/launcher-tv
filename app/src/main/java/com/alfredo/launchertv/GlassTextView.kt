@@ -218,9 +218,32 @@ class GlassTextView @JvmOverloads constructor(
             intArrayOf(0x8CFFFFFF.toInt(), 0x2EFFFFFF, 0x00FFFFFF, 0x22FFFFFF),
             floatArrayOf(0f, 0.40f, 0.52f, 1f), Shader.TileMode.CLAMP)
         drawTabular(oc, gloss, x, y)
-        // sobre cielos muy claros el borde se oscurece un poco para que las cifras no se fundan
-        edge.color = if (onBright) 0x55303A48 else 0x66FFFFFF
-        drawTabular(oc, edge, x, y)
+        // Canto iluminado (como el estante y los menús): el borde de cada cifra brilla más donde le
+        // da la luz (arriba a la izquierda) y deja un reflejo suave abajo a la derecha. Sobre cielos
+        // muy claros el canto es oscuro para que las cifras no se fundan con el cielo.
+        val bottom = y + fm.descent
+        val cell = digitCell()
+        fun c(a: Float, rgb: Int) = ((a * 255).toInt().coerceIn(0, 255) shl 24) or rgb
+        val rimShader = if (onBright)
+            LinearGradient(0f, top, cell * 0.6f, bottom,
+                intArrayOf(c(0.42f, 0x303A48), c(0.22f, 0x303A48), c(0.5f, 0x303A48)), floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP)
+        else
+            LinearGradient(0f, top, cell * 0.6f, bottom,
+                intArrayOf(c(0.85f, 0xFFFFFF), c(0.16f, 0xFFFFFF), c(0.38f, 0xFFFFFF)), floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP)
+        edge.color = 0xFFFFFFFF.toInt()
+        edge.strokeWidth = 1.4f * resources.displayMetrics.density
+        edge.shader = rimShader
+        // Cada cifra con su propia luz (no un degradado único de izquierda a derecha del reloj).
+        val m = Matrix()
+        var cx0 = x - totalWidth() / 2f
+        for (ch in text) {
+            val cw = if (ch == ':') colonCell() else digitCell()
+            m.setTranslate(cx0 + (cw - cell) / 2f, 0f)
+            rimShader.setLocalMatrix(m)
+            oc.drawText(ch.toString(), cx0 + cw / 2f, y, edge)
+            cx0 += cw
+        }
+        edge.shader = null
         cacheOverlay = ov
     }
 
